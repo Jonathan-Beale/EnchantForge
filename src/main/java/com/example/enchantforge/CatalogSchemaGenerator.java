@@ -46,28 +46,27 @@ public final class CatalogSchemaGenerator {
         screen.addProperty("title", "EnchantForge Catalog");
         screen.addProperty("priority", 100);
         
-        // Main panel layout: search bar + enchantment grid
-        JsonObject panel = new JsonObject();
-        panel.addProperty("type", "panel");
-        panel.addProperty("direction", "column");
-        panel.addProperty("spacing", 8);
-        
+        // Build widgets array directly (not nested under panel)
         JsonArray widgets = new JsonArray();
         
         // Header
         widgets.add(createHeader());
+        widgets.add(createSpacer(2));
         
         // Search/filter bar
         widgets.add(createSearchBar());
+        widgets.add(createSpacer(4));
         
-        // Enchantment cards (grid layout)
-        widgets.add(createEnchantmentGrid(registry));
+        // Enchantment cards (one per enchant, sorted)
+        List<CustomEnchant> sorted = registry.getAll().stream()
+                .sorted(Comparator.comparing(CustomEnchant::getDisplayName, String.CASE_INSENSITIVE_ORDER))
+                .toList();
+        for (int i = 0; i < sorted.size(); i++) {
+            if (i > 0) widgets.add(createSpacer(2)); // Spacing between cards
+            widgets.add(createEnchantmentCard(sorted.get(i)));
+        }
         
-        panel.add("children", widgets);
-        
-        JsonArray panelArray = new JsonArray();
-        panelArray.add(panel);
-        screen.add("panel", panelArray);
+        screen.add("widgets", widgets);
         
         return screen;
     }
@@ -86,42 +85,23 @@ public final class CatalogSchemaGenerator {
         return header;
     }
 
-    private static JsonObject createSearchBar() {
-        JsonObject search = new JsonObject();
-        search.addProperty("type", "input");
-        search.addProperty("id", "catalog_search");
-        search.addProperty("placeholder", "Search enchantments... (name, tag, trigger)");
-        
-        JsonObject config = new JsonObject();
-        config.addProperty("clearable", true);
-        config.addProperty("maxLength", 50);
-        search.add("config", config);
-        
-        return search;
+    private static JsonObject createSpacer(int height) {
+        JsonObject spacer = new JsonObject();
+        spacer.addProperty("type", "spacer");
+        spacer.addProperty("height", height);
+        return spacer;
     }
 
-    /**
-     * Create a grid of enchantment cards with all YAML properties.
-     * Cards are procedurally generated from the registry - no hardcoding needed.
-     */
-    private static JsonObject createEnchantmentGrid(EnchantmentRegistry registry) {
-        JsonObject grid = new JsonObject();
-        grid.addProperty("type", "panel");
-        grid.addProperty("direction", "column");
-        grid.addProperty("spacing", 4);
+    private static JsonObject createSearchBar() {
+        JsonObject search = new JsonObject();
+        search.addProperty("type", "text");
+        search.addProperty("text", "🔍 Search: (name, trigger, tag)");
         
-        // Sort enchantments alphabetically
-        List<CustomEnchant> sorted = registry.getAll().stream()
-                .sorted(Comparator.comparing(CustomEnchant::getDisplayName, String.CASE_INSENSITIVE_ORDER))
-                .toList();
+        JsonObject color = new JsonObject();
+        color.addProperty("text", "0xFFFFFF");
+        search.add("colors", color);
         
-        JsonArray cards = new JsonArray();
-        for (CustomEnchant enchant : sorted) {
-            cards.add(createEnchantmentCard(enchant));
-        }
-        
-        grid.add("children", cards);
-        return grid;
+        return search;
     }
 
     /**
@@ -130,103 +110,49 @@ public final class CatalogSchemaGenerator {
      */
     private static JsonObject createEnchantmentCard(CustomEnchant enchant) {
         JsonObject card = new JsonObject();
-        card.addProperty("type", "panel");
-        card.addProperty("direction", "column");
-        card.addProperty("spacing", 3);
+        card.addProperty("type", "text");
         
-        // Add data binding key for search filtering on client-side
-        String searchKey = enchant.getKey().getKey() + " " + 
-                          enchant.getDisplayName() + " " +
-                          String.join(" ", tagsFor(enchant));
-        card.addProperty("dataBinding", searchKey.toLowerCase(Locale.ROOT));
-        
-        JsonObject borderStyle = new JsonObject();
-        borderStyle.addProperty("border", "0xFF2A2A4E");
-        borderStyle.addProperty("bg", "0xFF0F0F23");
-        borderStyle.addProperty("padding", 4);
-        card.add("style", borderStyle);
-        
-        JsonArray cardContent = new JsonArray();
-        
-        // Title row: name + level + tags
-        cardContent.add(createCardTitle(enchant));
+        // Build formatted text with all enchantment info
+        StringBuilder text = new StringBuilder();
+        text.append("**").append(enchant.getDisplayName())
+            .append(" (I-").append(CustomEnchant.toRoman(enchant.getMaxLevel())).append(")**\n");
         
         // Trigger info
-        cardContent.add(createInfoRow("Trigger", triggerLabel(enchant.getTrigger())));
+        text.append("*Trigger:* ").append(triggerLabel(enchant.getTrigger())).append("\n");
         
         // Applicable items
-        String itemsStr = enchant.getApplicableTo().size() == 0 ? 
+        String itemsStr = enchant.getApplicableTo().isEmpty() ? 
             "any" : String.join(", ", enchant.getApplicableTo().stream().limit(3).toList());
         if (enchant.getApplicableTo().size() > 3) itemsStr += " ...";
-        cardContent.add(createInfoRow("Items", itemsStr));
+        text.append("*Items:* ").append(itemsStr).append("\n");
         
         // Effect style
         String effectStyle = enchant.getEffect().getClass().getSimpleName();
-        cardContent.add(createInfoRow("Effect", effectStyle));
+        text.append("*Effect:* ").append(effectStyle).append("\n");
         
         // Cooldown
-        cardContent.add(createInfoRow("Cooldown", enchant.getCooldownTicks() + " ticks"));
+        text.append("*Cooldown:* ").append(enchant.getCooldownTicks()).append(" ticks\n");
         
         // Description
         if (enchant.getDescription() != null && !enchant.getDescription().isBlank()) {
-            JsonObject descWidget = new JsonObject();
-            descWidget.addProperty("type", "text");
-            descWidget.addProperty("text", enchant.getDescription());
-            
-            JsonObject descColor = new JsonObject();
-            descColor.addProperty("text", "0xBBBBBB");
-            descWidget.add("colors", descColor);
-            
-            cardContent.add(descWidget);
+            text.append("*Description:* ").append(enchant.getDescription()).append("\n");
         }
         
         // Tags
         List<String> tags = tagsFor(enchant);
         if (!tags.isEmpty()) {
-            cardContent.add(createTagRow(tags));
+            text.append("*Tags:* ").append(String.join(", ", tags));
         }
         
-        card.add("children", cardContent);
-        return card;
-    }
-
-    private static JsonObject createCardTitle(CustomEnchant enchant) {
-        JsonObject title = new JsonObject();
-        title.addProperty("type", "text");
+        card.addProperty("text", text.toString().trim());
         
-        String titleText = enchant.getDisplayName() + " (I-" + 
-                          CustomEnchant.toRoman(enchant.getMaxLevel()) + ")";
-        title.addProperty("text", titleText);
-        
-        JsonObject titleColor = new JsonObject();
-        titleColor.addProperty("text", "0x55FFFF");
-        title.add("colors", titleColor);
-        
-        return title;
-    }
-
-    private static JsonObject createInfoRow(String label, String value) {
-        JsonObject row = new JsonObject();
-        row.addProperty("type", "text");
-        row.addProperty("text", "**" + label + "**: " + value);
-        
+        // Color the card
         JsonObject color = new JsonObject();
         color.addProperty("text", "0xDDDDDD");
-        row.add("colors", color);
+        color.addProperty("bg", "0xFF0F0F23");
+        card.add("colors", color);
         
-        return row;
-    }
-
-    private static JsonObject createTagRow(List<String> tags) {
-        JsonObject tagRow = new JsonObject();
-        tagRow.addProperty("type", "text");
-        tagRow.addProperty("text", "**Tags**: " + String.join(", ", tags));
-        
-        JsonObject tagColor = new JsonObject();
-        tagColor.addProperty("text", "0xAA99FF");
-        tagRow.add("colors", tagColor);
-        
-        return tagRow;
+        return card;
     }
 
     /**
