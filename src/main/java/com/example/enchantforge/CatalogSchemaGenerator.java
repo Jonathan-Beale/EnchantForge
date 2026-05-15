@@ -37,7 +37,8 @@ public final class CatalogSchemaGenerator {
     }
 
     /**
-     * Generate the main catalog screen with search and enchantment grid
+    /**
+     * Generate the main catalog screen with scrollable, collapsible enchantment cards.
      */
     private static JsonObject generateCatalogScreen(EnchantmentRegistry registry) {
         JsonObject screen = new JsonObject();
@@ -45,28 +46,34 @@ public final class CatalogSchemaGenerator {
         screen.addProperty("plugin", "enchantforge");
         screen.addProperty("title", "EnchantForge Catalog");
         screen.addProperty("priority", 100);
-        
-        // Build widgets array directly (not nested under panel)
+
         JsonArray widgets = new JsonArray();
-        
-        // Header
+
+        // Header + hint
         widgets.add(createHeader());
         widgets.add(createSpacer(2));
-        
-        // Search/filter bar
-        widgets.add(createSearchBar());
+        widgets.add(createSearchHint());
         widgets.add(createSpacer(4));
-        
-        // Enchantment cards (one per enchant, sorted)
+
+        // Scrollable list of collapsible cards
         List<CustomEnchant> sorted = registry.getAll().stream()
                 .sorted(Comparator.comparing(CustomEnchant::getDisplayName, String.CASE_INSENSITIVE_ORDER))
                 .toList();
+
+        JsonArray cardWidgets = new JsonArray();
         for (int i = 0; i < sorted.size(); i++) {
-            if (i > 0) widgets.add(createSpacer(2)); // Spacing between cards
-            widgets.add(createEnchantmentCard(sorted.get(i)));
-        }        
+            if (i > 0) cardWidgets.add(createSpacer(2));
+            cardWidgets.add(createEnchantmentCard(sorted.get(i)));
+        }
+
+        JsonObject scrollPanel = new JsonObject();
+        scrollPanel.addProperty("type", "scroll_panel");
+        scrollPanel.addProperty("id", "catalog_list");
+        scrollPanel.addProperty("height", 180);  // Will use remaining space
+        scrollPanel.add("widgets", cardWidgets);
+        widgets.add(scrollPanel);
+
         screen.add("widgets", widgets);
-        
         return screen;
     }
 
@@ -74,8 +81,15 @@ public final class CatalogSchemaGenerator {
         JsonObject header = new JsonObject();
         header.addProperty("type", "text");
         header.addProperty("text", "EnchantForge Catalog");
-        header.addProperty("color", "0xFF55FFFF");
+        header.addProperty("color", "0xFF88DDDD");  // Softer teal
         return header;
+    }
+
+    private static JsonObject createSearchHint() {
+        JsonObject hint = new JsonObject();
+        hint.addProperty("type", "hint");
+        hint.addProperty("text", "Click an enchantment to expand details");
+        return hint;
     }
 
     private static JsonObject createSpacer(int height) {
@@ -93,43 +107,43 @@ public final class CatalogSchemaGenerator {
     }
 
     /**
-     * Create an enchantment card as a panel widget containing labelled child rows.
-     * Panel renders a background + border and recursively lays out children.
+     * Create a collapsible card for an enchantment.
+     * Header shows: name + level + tags (always visible).
+     * Body shows: trigger, items, effect, cooldown, description (expanded on click).
      */
     private static JsonObject createEnchantmentCard(CustomEnchant enchant) {
         JsonObject card = new JsonObject();
-        card.addProperty("type", "panel");
-        card.addProperty("padding", 4);
-        card.addProperty("background", 0xFF0F0F23);
-        card.addProperty("border", 0xFF2A2A4E);
+        card.addProperty("type", "collapsible");
+        card.addProperty("id", "enchant_" + enchant.getKey().getKey());
+        card.addProperty("open", false);
+        card.addProperty("headerHeight", 18);
+        card.addProperty("padding", 3);
 
+        // Header label: name + level range + tags inline
+        List<String> tags = tagsFor(enchant);
+        String tagStr = tags.isEmpty() ? "" : "  [" + String.join(", ", tags) + "]";
+        card.addProperty("label", enchant.getDisplayName() +
+                " (I-" + CustomEnchant.toRoman(enchant.getMaxLevel()) + ")" + tagStr);
+
+        card.addProperty("headerColor", "0xFFCCCCCC");
+        card.addProperty("headerBg", "0xFF111122");
+        card.addProperty("headerHoverBg", "0xFF1C1C33");
+        card.addProperty("background", "0xFF0A0A18");
+
+        // Children = detail rows shown only when expanded
         JsonArray children = new JsonArray();
 
-        // Title
-        JsonObject title = new JsonObject();
-        title.addProperty("type", "text");
-        title.addProperty("text", enchant.getDisplayName() +
-                " (I-" + CustomEnchant.toRoman(enchant.getMaxLevel()) + ")");
-        title.addProperty("color", "0xFF55FFFF");
-        children.add(title);
-
-        // Trigger
+        children.add(createSpacer(2));
         children.add(hintRow("Trigger", triggerLabel(enchant.getTrigger())));
 
-        // Items
         String itemsStr = enchant.getApplicableTo().isEmpty()
                 ? "any"
                 : String.join(", ", enchant.getApplicableTo().stream().limit(3).toList());
         if (enchant.getApplicableTo().size() > 3) itemsStr += ", ...";
         children.add(hintRow("Items", itemsStr));
-
-        // Effect
         children.add(hintRow("Effect", enchant.getEffect().getClass().getSimpleName()));
-
-        // Cooldown
         children.add(hintRow("Cooldown", enchant.getCooldownTicks() + " ticks"));
 
-        // Description
         if (enchant.getDescription() != null && !enchant.getDescription().isBlank()) {
             JsonObject desc = new JsonObject();
             desc.addProperty("type", "hint");
@@ -137,11 +151,7 @@ public final class CatalogSchemaGenerator {
             children.add(desc);
         }
 
-        // Tags
-        List<String> tags = tagsFor(enchant);
-        if (!tags.isEmpty()) {
-            children.add(hintRow("Tags", String.join(", ", tags)));
-        }
+        children.add(createSpacer(2));
 
         card.add("widgets", children);
         return card;
