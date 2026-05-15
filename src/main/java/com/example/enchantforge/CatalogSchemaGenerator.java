@@ -106,53 +106,78 @@ public final class CatalogSchemaGenerator {
 
     /**
      * Create a card displaying a single enchantment with all YAML properties.
-     * Each card shows: name, level range, applicable items, trigger, effect, description, tags
+     * Returns a panel containing properly formatted text rows that wrap correctly.
      */
     private static JsonObject createEnchantmentCard(CustomEnchant enchant) {
         JsonObject card = new JsonObject();
-        card.addProperty("type", "text");
+        card.addProperty("type", "panel");
+        card.addProperty("direction", "column");
+        card.addProperty("spacing", 2);
         
-        // Build formatted text with all enchantment info
-        StringBuilder text = new StringBuilder();
-        text.append("**").append(enchant.getDisplayName())
-            .append(" (I-").append(CustomEnchant.toRoman(enchant.getMaxLevel())).append(")**\n");
+        // Add padding/border styling
+        JsonObject style = new JsonObject();
+        style.addProperty("padding", 4);
+        style.addProperty("margin", 2);
+        card.add("style", style);
         
-        // Trigger info
-        text.append("*Trigger:* ").append(triggerLabel(enchant.getTrigger())).append("\n");
+        JsonArray children = new JsonArray();
         
-        // Applicable items
+        // Title
+        JsonObject title = new JsonObject();
+        title.addProperty("type", "text");
+        title.addProperty("text", enchant.getDisplayName() + " (I-" + 
+                          CustomEnchant.toRoman(enchant.getMaxLevel()) + ")");
+        JsonObject titleColor = new JsonObject();
+        titleColor.addProperty("text", "0x55FFFF");
+        title.add("colors", titleColor);
+        children.add(title);
+        
+        // Trigger
+        children.add(createCardRow("Trigger", triggerLabel(enchant.getTrigger())));
+        
+        // Items
         String itemsStr = enchant.getApplicableTo().isEmpty() ? 
             "any" : String.join(", ", enchant.getApplicableTo().stream().limit(3).toList());
-        if (enchant.getApplicableTo().size() > 3) itemsStr += " ...";
-        text.append("*Items:* ").append(itemsStr).append("\n");
+        if (enchant.getApplicableTo().size() > 3) itemsStr += ", ...";
+        children.add(createCardRow("Items", itemsStr));
         
-        // Effect style
+        // Effect
         String effectStyle = enchant.getEffect().getClass().getSimpleName();
-        text.append("*Effect:* ").append(effectStyle).append("\n");
+        children.add(createCardRow("Effect", effectStyle));
         
         // Cooldown
-        text.append("*Cooldown:* ").append(enchant.getCooldownTicks()).append(" ticks\n");
+        children.add(createCardRow("Cooldown", enchant.getCooldownTicks() + " ticks"));
         
-        // Description
+        // Description (if present)
         if (enchant.getDescription() != null && !enchant.getDescription().isBlank()) {
-            text.append("*Description:* ").append(enchant.getDescription()).append("\n");
+            children.add(createCardRow("Description", enchant.getDescription()));
         }
         
         // Tags
         List<String> tags = tagsFor(enchant);
         if (!tags.isEmpty()) {
-            text.append("*Tags:* ").append(String.join(", ", tags));
+            children.add(createCardRow("Tags", String.join(", ", tags)));
         }
         
-        card.addProperty("text", text.toString().trim());
-        
-        // Color the card
-        JsonObject color = new JsonObject();
-        color.addProperty("text", "0xDDDDDD");
-        color.addProperty("bg", "0xFF0F0F23");
-        card.add("colors", color);
-        
+        card.add("children", children);
         return card;
+    }
+    
+    /**
+     * Create a label-value row that wraps properly
+     */
+    private static JsonObject createCardRow(String label, String value) {
+        JsonObject row = new JsonObject();
+        row.addProperty("type", "text");
+        row.addProperty("text", "**" + label + "**: " + value);
+        row.addProperty("wrap", true);  // Enable text wrapping
+        row.addProperty("maxWidth", 300);  // Set reasonable width constraint
+        
+        JsonObject color = new JsonObject();
+        color.addProperty("text", "0xCCCCCC");
+        row.add("colors", color);
+        
+        return row;
     }
 
     /**
