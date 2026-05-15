@@ -1,0 +1,22 @@
+# Vampiric — heals the wielder for a portion of damage dealt
+
+displayName: "Vampiric"
+maxLevel: 3
+applicableTo:
+  - _SWORD
+  - _AXE
+
+trigger:
+  type: on_deal_damage
+
+effect:
+  style: heal
+  percentPerLevel: 0.15    # fraction of final damage healed per level (0.15 = 15%)
+  overhealPerLevel: 4.0    # absorption HP cap per level when heal exceeds max HP (4 HP = 2 hearts)
+
+duration:
+  type: never
+
+stackBehavior: HIGHEST
+displayAmountPerLevel: 15.0
+description: "Heals {amount}% of damage dealt"

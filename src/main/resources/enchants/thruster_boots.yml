@@ -1,0 +1,25 @@
+displayName: "Thrusters"
+maxLevel: 3
+applicableTo:
+  - LEATHER_BOOTS
+  - CHAINMAIL_BOOTS
+  - IRON_BOOTS
+  - GOLDEN_BOOTS
+  - DIAMOND_BOOTS
+  - NETHERITE_BOOTS
+
+trigger:
+  type: on_suit_jump
+
+effect:
+  style: thruster
+  power: 0.7
+  energy_cost: 18.0
+
+duration:
+  type: never
+
+cooldown: 0
+stackBehavior: HIGHEST
+displayAmountPerLevel: 0.7
+description: "Double-jump to thrust — tap for burst, hold for mega blast. Draws from suit energy."

@@ -1,0 +1,26 @@
+displayName: "Repulsor"
+maxLevel: 3
+# Gauntlet slot = off-hand. Apply to any ingot/rod the player will hold in their left hand.
+applicableTo:
+  - IRON_INGOT
+  - GOLD_INGOT
+  - DIAMOND
+  - NETHERITE_INGOT
+  - BLAZE_ROD
+
+trigger:
+  type: on_right_click
+
+effect:
+  style: hand_laser
+  range: 25.0
+  damage: 6.0
+  energy_cost: 15.0
+
+duration:
+  type: never
+
+cooldown: 5
+stackBehavior: HIGHEST
+displayAmountPerLevel: 6.0
+description: "Repulsor beam — hold in off-hand as gauntlet, draws from shared suit energy"

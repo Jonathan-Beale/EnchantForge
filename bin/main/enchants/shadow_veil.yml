@@ -1,0 +1,21 @@
+# Shadow Veil — right-click to turn invisible briefly
+
+displayName: "Shadow Veil"
+maxLevel: 1
+applicableTo:
+  - _SWORD
+
+trigger:
+  type: on_right_click
+
+effect:
+  style: full_invisibility
+
+duration:
+  type: time
+  ticks: 200    # 10 seconds
+
+cooldown: 600   # 30 seconds
+stackBehavior: HIGHEST
+displayAmountPerLevel: 10.0
+description: "Vanish for {amount}s on right-click ({cooldown} cooldown)"

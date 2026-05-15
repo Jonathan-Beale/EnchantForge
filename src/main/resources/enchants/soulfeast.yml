@@ -1,0 +1,22 @@
+# Soulfeast — restores hunger when you kill an entity
+
+displayName: "Soulfeast"
+maxLevel: 3
+applicableTo:
+  - _SWORD
+  - _AXE
+
+trigger:
+  type: on_kill_entity
+
+effect:
+  style: hunger
+  amountPerLevel: 2.0       # food points per level (2 points = 1 hunger bar)
+  saturationPerLevel: 1.0
+
+duration:
+  type: never
+
+stackBehavior: HIGHEST
+displayAmountPerLevel: 2.0
+description: "Restores {amount} hunger on kill"

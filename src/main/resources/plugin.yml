@@ -1,0 +1,17 @@
+name: EnchantForge
+version: '1.0-SNAPSHOT'
+main: com.example.enchantforge.EnchantForge
+api-version: '1.21'
+softdepend: [VibeCraft]
+
+commands:
+  cenchant:
+    description: Apply a custom enchantment to the held item.
+    usage: /cenchant <enchantment> [level]
+    permission: enchantforge.cenchant
+    permission-message: You don't have permission to use this command.
+
+permissions:
+  enchantforge.cenchant:
+    description: Allows applying custom enchantments.
+    default: op

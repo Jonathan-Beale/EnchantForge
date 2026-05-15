@@ -1,0 +1,24 @@
+# Berserker — grants Strength for 5 seconds when hit, with a 5-second cooldown
+# Increase cooldown (ticks) or duration ticks to tune; no Java changes needed.
+
+displayName: "Berserker"
+maxLevel: 3
+applicableTo:
+  - ARMOR
+
+trigger:
+  type: on_damage_taken
+
+effect:
+  style: potion
+  potion: strength
+
+duration:
+  type: time
+  ticks: 600   # 30 seconds
+
+cooldown: 1200  # 60 seconds between triggers
+
+stackBehavior: HIGHEST
+displayAmountPerLevel: 5.0
+description: "Strength {duration} on hit (cooldown: {cooldown})"

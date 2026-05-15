@@ -1,0 +1,56 @@
+{
+  "screens": [
+    {
+      "id": "enchantforge:catalog",
+      "plugin": "enchantforge",
+      "title": "EnchantForge Catalog",
+      "priority": 90,
+      "widgets": [
+        {
+          "type": "toolbar",
+          "showOptions": false,
+          "showHelp": false,
+          "showClose": true,
+          "closeLabel": "X",
+          "statusText": "Filter: ${detail}"
+        },
+        {
+          "type": "dropdown",
+          "id": "tag-filter",
+          "label": "Tags",
+          "height": 18,
+          "optionHeight": 16,
+          "options": [
+            { "label": "All", "action": { "type": "send_message", "plugin": "enchantforge", "text": "show all" } },
+            { "label": "Passive", "action": { "type": "send_message", "plugin": "enchantforge", "text": "filter passive" } },
+            { "label": "Reactive", "action": { "type": "send_message", "plugin": "enchantforge", "text": "filter reactive" } },
+            { "label": "Conditional", "action": { "type": "send_message", "plugin": "enchantforge", "text": "filter conditional" } },
+            { "label": "Offense", "action": { "type": "send_message", "plugin": "enchantforge", "text": "filter offense" } },
+            { "label": "Defense", "action": { "type": "send_message", "plugin": "enchantforge", "text": "filter defense" } },
+            { "label": "Utility", "action": { "type": "send_message", "plugin": "enchantforge", "text": "filter utility" } },
+            { "label": "Sustain", "action": { "type": "send_message", "plugin": "enchantforge", "text": "filter sustain" } },
+            { "label": "Mobility", "action": { "type": "send_message", "plugin": "enchantforge", "text": "filter mobility" } }
+          ]
+        },
+        {
+          "type": "history",
+          "flex": true,
+          "lineHeight": 11,
+          "showThoughts": true,
+          "scrollbarWidth": 3
+        }
+      ]
+    }
+  ],
+  "overlays": [
+    {
+      "id": "enchantforge:armor_sidebar",
+      "plugin": "enchantforge",
+      "type": "armor_slots",
+      "position": { "x": 10, "y": 40, "anchor": "left" },
+      "size": { "width": 24, "height": 96 },
+      "style": { "background": "222222AA", "border": "FFFFFF88" },
+      "dataBinding": "player.armor"
+    }
+  ]
+}

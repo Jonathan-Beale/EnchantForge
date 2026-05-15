@@ -1,0 +1,14 @@
+# EnchantForge Configuration
+
+# Resource pack (teal absorption hearts).
+# The plugin generates enchantforge_pack.zip on startup and serves it via a built-in
+# HTTP server.  Set host to your server's public IP or domain so players can reach it.
+# Port 8080 must be open/forwarded in addition to the normal Minecraft port.
+# Leave host blank to disable the pack entirely (absorption hearts stay default yellow).
+resource-pack:
+  host: ""
+  port: 8080
+  # Override the auto-computed URL (http://<host>:<port>/enchantforge_pack.zip) if needed,
+  # e.g. if you're behind a reverse proxy.  Leave blank to use the auto-computed URL.
+  url: ""
+  required: false
