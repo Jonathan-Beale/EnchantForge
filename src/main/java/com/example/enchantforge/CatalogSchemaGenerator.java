@@ -64,8 +64,7 @@ public final class CatalogSchemaGenerator {
         for (int i = 0; i < sorted.size(); i++) {
             if (i > 0) widgets.add(createSpacer(2)); // Spacing between cards
             widgets.add(createEnchantmentCard(sorted.get(i)));
-        }
-        
+        }        
         screen.add("widgets", widgets);
         
         return screen;
@@ -75,13 +74,7 @@ public final class CatalogSchemaGenerator {
         JsonObject header = new JsonObject();
         header.addProperty("type", "text");
         header.addProperty("text", "EnchantForge Catalog");
-        header.addProperty("style", "heading");
-        
-        JsonObject color = new JsonObject();
-        color.addProperty("bg", "1a1a2e");
-        color.addProperty("text", "55FFFF");
-        header.add("colors", color);
-        
+        header.addProperty("color", "0xFF55FFFF");
         return header;
     }
 
@@ -94,89 +87,70 @@ public final class CatalogSchemaGenerator {
 
     private static JsonObject createSearchBar() {
         JsonObject search = new JsonObject();
-        search.addProperty("type", "text");
-        search.addProperty("text", "🔍 Search: (name, trigger, tag)");
-        
-        JsonObject color = new JsonObject();
-        color.addProperty("text", "0xFFFFFF");
-        search.add("colors", color);
-        
+        search.addProperty("type", "hint");
+        search.addProperty("text", "Search: (name, trigger, tag)");
         return search;
     }
 
     /**
-     * Create a card displaying a single enchantment with all YAML properties.
-     * Returns a panel containing properly formatted text rows that wrap correctly.
+     * Create an enchantment card as a panel widget containing labelled child rows.
+     * Panel renders a background + border and recursively lays out children.
      */
     private static JsonObject createEnchantmentCard(CustomEnchant enchant) {
         JsonObject card = new JsonObject();
         card.addProperty("type", "panel");
-        card.addProperty("direction", "column");
-        card.addProperty("spacing", 2);
-        
-        // Add padding/border styling
-        JsonObject style = new JsonObject();
-        style.addProperty("padding", 4);
-        style.addProperty("margin", 2);
-        card.add("style", style);
-        
+        card.addProperty("padding", 4);
+        card.addProperty("background", 0xFF0F0F23);
+        card.addProperty("border", 0xFF2A2A4E);
+
         JsonArray children = new JsonArray();
-        
+
         // Title
         JsonObject title = new JsonObject();
         title.addProperty("type", "text");
-        title.addProperty("text", enchant.getDisplayName() + " (I-" + 
-                          CustomEnchant.toRoman(enchant.getMaxLevel()) + ")");
-        JsonObject titleColor = new JsonObject();
-        titleColor.addProperty("text", "0x55FFFF");
-        title.add("colors", titleColor);
+        title.addProperty("text", enchant.getDisplayName() +
+                " (I-" + CustomEnchant.toRoman(enchant.getMaxLevel()) + ")");
+        title.addProperty("color", "0xFF55FFFF");
         children.add(title);
-        
+
         // Trigger
-        children.add(createCardRow("Trigger", triggerLabel(enchant.getTrigger())));
-        
+        children.add(hintRow("Trigger", triggerLabel(enchant.getTrigger())));
+
         // Items
-        String itemsStr = enchant.getApplicableTo().isEmpty() ? 
-            "any" : String.join(", ", enchant.getApplicableTo().stream().limit(3).toList());
+        String itemsStr = enchant.getApplicableTo().isEmpty()
+                ? "any"
+                : String.join(", ", enchant.getApplicableTo().stream().limit(3).toList());
         if (enchant.getApplicableTo().size() > 3) itemsStr += ", ...";
-        children.add(createCardRow("Items", itemsStr));
-        
+        children.add(hintRow("Items", itemsStr));
+
         // Effect
-        String effectStyle = enchant.getEffect().getClass().getSimpleName();
-        children.add(createCardRow("Effect", effectStyle));
-        
+        children.add(hintRow("Effect", enchant.getEffect().getClass().getSimpleName()));
+
         // Cooldown
-        children.add(createCardRow("Cooldown", enchant.getCooldownTicks() + " ticks"));
-        
-        // Description (if present)
+        children.add(hintRow("Cooldown", enchant.getCooldownTicks() + " ticks"));
+
+        // Description
         if (enchant.getDescription() != null && !enchant.getDescription().isBlank()) {
-            children.add(createCardRow("Description", enchant.getDescription()));
+            JsonObject desc = new JsonObject();
+            desc.addProperty("type", "hint");
+            desc.addProperty("text", enchant.getDescription());
+            children.add(desc);
         }
-        
+
         // Tags
         List<String> tags = tagsFor(enchant);
         if (!tags.isEmpty()) {
-            children.add(createCardRow("Tags", String.join(", ", tags)));
+            children.add(hintRow("Tags", String.join(", ", tags)));
         }
-        
-        card.add("children", children);
+
+        card.add("widgets", children);
         return card;
     }
-    
-    /**
-     * Create a label-value row that wraps properly
-     */
-    private static JsonObject createCardRow(String label, String value) {
+
+    private static JsonObject hintRow(String label, String value) {
         JsonObject row = new JsonObject();
-        row.addProperty("type", "text");
-        row.addProperty("text", "**" + label + "**: " + value);
-        row.addProperty("wrap", true);  // Enable text wrapping
-        row.addProperty("maxWidth", 300);  // Set reasonable width constraint
-        
-        JsonObject color = new JsonObject();
-        color.addProperty("text", "0xCCCCCC");
-        row.add("colors", color);
-        
+        row.addProperty("type", "hint");
+        row.addProperty("text", label + ": " + value);
         return row;
     }
 
