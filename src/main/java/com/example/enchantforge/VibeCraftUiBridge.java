@@ -63,7 +63,7 @@ public final class VibeCraftUiBridge {
      */
     private void sendSchema(Player player, JsonObject schema) {
         JsonObject event = new JsonObject();
-        event.addProperty("type", "schema");
+        event.addProperty("type", "ui_schema");
         event.add("schema", schema);
         sendEvent(player, event.toString());
     }
