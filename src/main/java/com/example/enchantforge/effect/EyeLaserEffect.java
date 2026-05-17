@@ -26,6 +26,9 @@ public class EyeLaserEffect implements EnchantEffect {
                 section.getDouble("damage", 4.0));
     }
 
+        @Override
+        public String id() { return "eye_laser"; }
+
     @Override
     public void apply(Player player, int level, int durationTicks) {
         Location eye = player.getEyeLocation();

@@ -9,6 +9,9 @@ public class FridayAiEffect implements EnchantEffect {
     private FridayAiEffect() {}
 
     @Override
+    public String id() { return "friday_ai"; }
+
+    @Override
     public void apply(Player player, int level, int durationTicks) {
         SuitListener suit = SuitListener.getInstance();
         if (suit != null) suit.activateSuit(player);

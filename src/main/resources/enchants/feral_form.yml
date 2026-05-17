@@ -5,11 +5,35 @@ maxLevel: 1
 applicableTo:
   - _SWORD
 
+catalog:
+  tags:
+    - mobility
+    - utility
+  items:
+    - weapon
+    - melee
+    - sword
+  order: 160
+
 trigger:
   type: on_right_click
 
 effect:
-  style: wolf_form
+  style: morph_form
+  entity: WOLF
+  visualMode: entity_follow
+  forceSwimPose: true
+  hidePlayer: true
+  mimicSwing: true
+  effects:
+    - type: speed
+      amplifier: 1
+    - type: strength
+      amplifier: 1
+    - type: jump_boost
+      amplifier: 1
+    - type: night_vision
+      amplifier: 0
 
 duration:
   type: time

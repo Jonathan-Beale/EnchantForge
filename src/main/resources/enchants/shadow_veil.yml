@@ -5,6 +5,16 @@ maxLevel: 1
 applicableTo:
   - _SWORD
 
+catalog:
+  tags:
+    - stealth
+    - utility
+  items:
+    - weapon
+    - melee
+    - sword
+  order: 150
+
 trigger:
   type: on_right_click
 

@@ -5,9 +5,10 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
 import java.util.Comparator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Procedurally generates UI schema for the EnchantForge catalog.
@@ -47,18 +48,25 @@ public final class CatalogSchemaGenerator {
         screen.addProperty("title", "EnchantForge Catalog");
         screen.addProperty("priority", 100);
 
+        List<CustomEnchant> sorted = registry.getAll().stream()
+            .filter(enchant -> !enchant.getCatalogMetadata().hidden())
+            .sorted(Comparator.comparing(CustomEnchant::getDisplayName, String.CASE_INSENSITIVE_ORDER))
+            .sorted(Comparator.comparingInt(enchant -> enchant.getCatalogMetadata().order()))
+            .toList();
+
         JsonArray widgets = new JsonArray();
 
-        // Header + hint
+        // Header + controls
         widgets.add(createHeader());
         widgets.add(createSpacer(2));
-        widgets.add(createSearchHint());
-        widgets.add(createSpacer(4));
+        widgets.add(createSearchBar());
+        widgets.add(createSpacer(3));
 
-        // Scrollable list of collapsible cards
-        List<CustomEnchant> sorted = registry.getAll().stream()
-                .sorted(Comparator.comparing(CustomEnchant::getDisplayName, String.CASE_INSENSITIVE_ORDER))
-                .toList();
+        Set<String> allTags = collectCatalogFacetValues(sorted, facets -> facets.tags());
+        Set<String> allItems = collectCatalogFacetValues(sorted, facets -> facets.items());
+        widgets.add(createTagFilterDropdown(allTags));
+        widgets.add(createItemFilterDropdown(allItems));
+        widgets.add(createSpacer(4));
 
         JsonArray cardWidgets = new JsonArray();
         for (int i = 0; i < sorted.size(); i++) {
@@ -69,7 +77,9 @@ public final class CatalogSchemaGenerator {
         JsonObject scrollPanel = new JsonObject();
         scrollPanel.addProperty("type", "scroll_panel");
         scrollPanel.addProperty("id", "catalog_list");
-        scrollPanel.addProperty("height", 180);  // Will use remaining space
+        scrollPanel.addProperty("flex", true);
+        scrollPanel.addProperty("searchState", "catalog_search");
+        scrollPanel.addProperty("emptyText", "No enchantments match this search/filter.");
         scrollPanel.add("widgets", cardWidgets);
         widgets.add(scrollPanel);
 
@@ -85,13 +95,6 @@ public final class CatalogSchemaGenerator {
         return header;
     }
 
-    private static JsonObject createSearchHint() {
-        JsonObject hint = new JsonObject();
-        hint.addProperty("type", "hint");
-        hint.addProperty("text", "Click an enchantment to expand details");
-        return hint;
-    }
-
     private static JsonObject createSpacer(int height) {
         JsonObject spacer = new JsonObject();
         spacer.addProperty("type", "spacer");
@@ -101,9 +104,83 @@ public final class CatalogSchemaGenerator {
 
     private static JsonObject createSearchBar() {
         JsonObject search = new JsonObject();
-        search.addProperty("type", "hint");
-        search.addProperty("text", "Search: (name, trigger, tag)");
+        search.addProperty("type", "search_box");
+        search.addProperty("id", "catalog_search");
+        search.addProperty("placeholder", "Search name, trigger, item, effect, or tag...");
+        search.addProperty("prefix", "");
+        search.addProperty("height", 18);
+        search.addProperty("background", "0xFF101422");
+        search.addProperty("focusBackground", "0xFF121A2E");
+        search.addProperty("outline", "0x664A6A94");
+        search.addProperty("focusOutline", "0xFF6CA4D4");
+        search.addProperty("textColor", "0xFFE8EEF7");
+        search.addProperty("placeholderColor", "0xFF7C8AA8");
+        search.addProperty("iconColor", "0xFF86A8D1");
         return search;
+    }
+
+    private static JsonObject createTagFilterDropdown(Set<String> tags) {
+        JsonObject dropdown = new JsonObject();
+        dropdown.addProperty("type", "multi_select_dropdown");
+        dropdown.addProperty("id", "catalog_tag_filter");
+        dropdown.addProperty("stateId", "catalog_search");
+        dropdown.addProperty("label", "Tags");
+        dropdown.addProperty("rowGroup", "catalog_filters");
+        dropdown.addProperty("widthPercent", 0.49);
+        dropdown.addProperty("align", "left");
+        dropdown.addProperty("height", 18);
+        dropdown.addProperty("optionHeight", 14);
+        dropdown.addProperty("maxVisible", 9);
+        dropdown.addProperty("buttonBg", "0xFF101828");
+        dropdown.addProperty("buttonHover", "0xFF16253A");
+        dropdown.addProperty("buttonOutline", "0x663A5A80");
+        dropdown.addProperty("buttonHoverOutline", "0xFF4A86C8");
+        dropdown.addProperty("optionBg", "0xFF101828");
+        dropdown.addProperty("optionHover", "0xFF1A2D46");
+        dropdown.addProperty("optionActive", "0xFF21456A");
+        dropdown.addProperty("optionOutline", "0x553A5A80");
+
+        JsonArray tokenDefs = new JsonArray();
+        for (String tag : tags) {
+            JsonObject tok = new JsonObject();
+            tok.addProperty("label", tag);
+            tok.addProperty("token", "tag:" + tag);
+            tokenDefs.add(tok);
+        }
+        dropdown.add("options", tokenDefs);
+        return dropdown;
+    }
+
+    private static JsonObject createItemFilterDropdown(Set<String> items) {
+        JsonObject dropdown = new JsonObject();
+        dropdown.addProperty("type", "multi_select_dropdown");
+        dropdown.addProperty("id", "catalog_item_filter");
+        dropdown.addProperty("stateId", "catalog_search");
+        dropdown.addProperty("label", "Items");
+        dropdown.addProperty("rowGroup", "catalog_filters");
+        dropdown.addProperty("widthPercent", 0.49);
+        dropdown.addProperty("align", "right");
+        dropdown.addProperty("height", 18);
+        dropdown.addProperty("optionHeight", 14);
+        dropdown.addProperty("maxVisible", 9);
+        dropdown.addProperty("buttonBg", "0xFF101828");
+        dropdown.addProperty("buttonHover", "0xFF16253A");
+        dropdown.addProperty("buttonOutline", "0x663A5A80");
+        dropdown.addProperty("buttonHoverOutline", "0xFF4A86C8");
+        dropdown.addProperty("optionBg", "0xFF101828");
+        dropdown.addProperty("optionHover", "0xFF1A2D46");
+        dropdown.addProperty("optionActive", "0xFF21456A");
+        dropdown.addProperty("optionOutline", "0x553A5A80");
+
+        JsonArray optionDefs = new JsonArray();
+        for (String item : items) {
+            JsonObject opt = new JsonObject();
+            opt.addProperty("label", item);
+            opt.addProperty("token", "item:" + item.toLowerCase(Locale.ROOT));
+            optionDefs.add(opt);
+        }
+        dropdown.add("options", optionDefs);
+        return dropdown;
     }
 
     /**
@@ -119,11 +196,35 @@ public final class CatalogSchemaGenerator {
         card.addProperty("headerHeight", 18);
         card.addProperty("padding", 3);
 
-        // Header label: name + level range + tags inline
-        List<String> tags = tagsFor(enchant);
-        String tagStr = tags.isEmpty() ? "" : "  [" + String.join(", ", tags) + "]";
+        CatalogFacets facets = CatalogFacets.fromEnchant(enchant);
+
+        // Header label: name + level range
         card.addProperty("label", enchant.getDisplayName() +
-                " (I-" + CustomEnchant.toRoman(enchant.getMaxLevel()) + ")" + tagStr);
+            " (I-" + CustomEnchant.toRoman(enchant.getMaxLevel()) + ")");
+
+        JsonArray tagArr = new JsonArray();
+        for (String tag : facets.tags()) {
+            tagArr.add(tag);
+        }
+        card.add("tags", tagArr);
+
+        JsonArray itemArr = new JsonArray();
+        for (String item : facets.items()) {
+            itemArr.add(item);
+        }
+        card.add("items", itemArr);
+        JsonObject catalog = new JsonObject();
+        JsonObject facetObj = new JsonObject();
+        facetObj.add("tags", toArray(facets.tags()));
+        facetObj.add("items", toArray(facets.items()));
+        facetObj.add("triggers", toArray(facets.triggers()));
+        facetObj.add("effectKinds", toArray(facets.effectKinds()));
+        facetObj.add("slotGroups", toArray(facets.slotGroups()));
+        facetObj.add("cooldownClasses", toArray(facets.cooldownClasses()));
+        facetObj.add("flags", toArray(facets.flags()));
+        catalog.add("facets", facetObj);
+        catalog.addProperty("searchText", facets.searchText());
+        card.add("catalog", catalog);
 
         card.addProperty("headerColor", "0xFFCCCCCC");
         card.addProperty("headerBg", "0xFF111122");
@@ -142,12 +243,15 @@ public final class CatalogSchemaGenerator {
         if (enchant.getApplicableTo().size() > 3) itemsStr += ", ...";
         children.add(hintRow("Items", itemsStr));
         children.add(hintRow("Effect", enchant.getEffect().getClass().getSimpleName()));
-        children.add(hintRow("Cooldown", enchant.getCooldownTicks() + " ticks"));
+        children.add(hintRow("Duration", enchant.getDurationLabel()));
+        children.add(hintRow("Cooldown", enchant.getCooldownLabel()));
 
         if (enchant.getDescription() != null && !enchant.getDescription().isBlank()) {
             JsonObject desc = new JsonObject();
             desc.addProperty("type", "hint");
-            desc.addProperty("text", enchant.getDescription());
+            desc.addProperty("wrap", true);
+            desc.addProperty("lineHeight", 10);
+            desc.addProperty("text", enchant.resolveDescription(1));
             children.add(desc);
         }
 
@@ -164,64 +268,36 @@ public final class CatalogSchemaGenerator {
         return row;
     }
 
-    /**
-     * Get tags for an enchantment (offensive, defensive, utility, etc.)
-     * These are used for search/filtering on the client side.
-     */
-    private static List<String> tagsFor(CustomEnchant enchant) {
-        LinkedHashSet<String> tags = new LinkedHashSet<>();
-        
-        // Trigger-based tags
-        String triggerType = enchant.getTrigger().getClass().getSimpleName().toLowerCase(Locale.ROOT);
-        if (triggerType.contains("equip")) {
-            tags.add("passive");
-        } else if (triggerType.contains("damagetaken")) {
-            tags.add("reactive");
-        } else {
-            tags.add("conditional");
+    private static Set<String> collectCatalogFacetValues(List<CustomEnchant> enchants,
+                                                         java.util.function.Function<CatalogFacets, List<String>> extractor) {
+        Set<String> values = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        for (CustomEnchant enchant : enchants) {
+            values.addAll(extractor.apply(CatalogFacets.fromEnchant(enchant)));
         }
-        
-        // Effect-based tags
-        if (triggerType.contains("deal") || triggerType.contains("kill")) {
-            tags.add("offense");
+        return values;
+    }
+
+    private static JsonArray toArray(List<String> values) {
+        JsonArray arr = new JsonArray();
+        for (String value : values) {
+            arr.add(value);
         }
-        if (triggerType.contains("damage") || triggerType.contains("equip")) {
-            tags.add("defense");
-        }
-        if (triggerType.contains("rightclick") || triggerType.contains("equip")) {
-            tags.add("utility");
-        }
-        
-        // Description/name-based tags
-        String key = enchant.getKey().getKey().toLowerCase(Locale.ROOT);
-        String name = enchant.getDisplayName().toLowerCase(Locale.ROOT);
-        String text = key + " " + name;
-        
-        if (text.contains("heal") || text.contains("vamp") || text.contains("vital") || 
-            text.contains("guard") || text.contains("bulwark")) {
-            tags.add("sustain");
-        }
-        if (text.contains("swift") || text.contains("shadow") || text.contains("feral")) {
-            tags.add("mobility");
-        }
-        
-        return List.copyOf(tags);
+        return arr;
     }
 
     /**
      * Get a human-readable label for the trigger type
      */
     private static String triggerLabel(EnchantTrigger trigger) {
-        String className = trigger.getClass().getSimpleName();
-        return switch (className) {
-            case "OnRightClickTrigger" -> "Right Click";
-            case "OnEquipTrigger" -> "On Equip";
-            case "OnDealDamageTrigger" -> "On Deal Damage";
-            case "OnDamageTakenTrigger" -> "On Damage Taken";
-            case "OnKillEntityTrigger" -> "On Kill";
-            case "OnSuitJumpTrigger" -> "On Jump (Suit)";
-            case "StatThresholdTrigger" -> "Stat Threshold";
-            default -> className.replace("Trigger", "");
+        return switch (trigger.id()) {
+            case "on_right_click" -> "Right Click";
+            case "on_equip" -> "On Equip";
+            case "on_deal_damage" -> "On Deal Damage";
+            case "on_damage_taken" -> "On Damage Taken";
+            case "on_kill_entity" -> "On Kill";
+            case "on_suit_jump" -> "On Jump (Suit)";
+            case "stat_threshold" -> "Stat Threshold";
+            default -> trigger.id();
         };
     }
 }

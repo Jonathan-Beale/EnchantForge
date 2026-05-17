@@ -14,6 +14,7 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.scoreboard.Scoreboard;
 import org.bukkit.scoreboard.Team;
+import org.bukkit.util.Vector;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -28,6 +29,9 @@ public class WolfFormEffect implements EnchantEffect, Listener {
     private static final Map<UUID, BukkitTask> tasks  = new HashMap<>();
 
     private WolfFormEffect() {}
+
+    @Override
+    public String id() { return "wolf_form"; }
 
     public static void init(Plugin p) {
         plugin = p;
@@ -68,6 +72,7 @@ public class WolfFormEffect implements EnchantEffect, Listener {
             noCollide.setOption(Team.Option.COLLISION_RULE, Team.OptionStatus.NEVER);
         }
         noCollide.addEntry(player.getName());
+        noCollide.addEntry(wolf.getUniqueId().toString());
 
         BukkitTask[] ref = {null};
         ref[0] = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
@@ -80,7 +85,10 @@ public class WolfFormEffect implements EnchantEffect, Listener {
                 if (ref[0] != null) ref[0].cancel();
                 return;
             }
-            w.teleport(p.getLocation());
+            Vector delta = p.getLocation().toVector().subtract(w.getLocation().toVector());
+            if (delta.lengthSquared() > 0.08 * 0.08) {
+                w.teleport(p.getLocation());
+            }
         }, 1L, 1L);
         tasks.put(id, ref[0]);
     }
@@ -97,7 +105,12 @@ public class WolfFormEffect implements EnchantEffect, Listener {
 
         Scoreboard board = Bukkit.getScoreboardManager().getMainScoreboard();
         Team noCollide = board.getTeam("ef_wolf_nc");
-        if (noCollide != null) noCollide.removeEntry(player.getName());
+        if (noCollide != null) {
+            noCollide.removeEntry(player.getName());
+            if (wolf != null) {
+                noCollide.removeEntry(wolf.getUniqueId().toString());
+            }
+        }
 
         VisibilityUtil.show(player);
 

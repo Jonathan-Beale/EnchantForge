@@ -12,3 +12,6 @@ resource-pack:
   # e.g. if you're behind a reverse proxy.  Leave blank to use the auto-computed URL.
   url: ""
   required: false
+
+debug:
+  cooldownVisuals: false

@@ -23,6 +23,9 @@ public class PotionStyleEffect implements EnchantEffect {
     }
 
     @Override
+    public String id() { return "potion"; }
+
+    @Override
     public void apply(Player player, int enchantLevel, int durationTicks) {
         int ticks = durationTicks < 0 ? Integer.MAX_VALUE : durationTicks;
         player.addPotionEffect(new PotionEffect(

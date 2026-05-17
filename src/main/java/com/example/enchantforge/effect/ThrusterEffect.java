@@ -24,6 +24,9 @@ public class ThrusterEffect implements EnchantEffect {
                 section.getDouble("energy_cost", 18.0));
     }
 
+    @Override
+    public String id() { return "thruster"; }
+
     /** Called by SuitListener on double-jump release. chargeTicks = how long space was held. */
     public void fire(Player player, int enchantLevel, int chargeTicks) {
         int tier;

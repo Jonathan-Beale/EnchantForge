@@ -41,6 +41,11 @@ public final class StatThresholdTrigger extends EnchantTrigger {
         return comparison.equals("below") ? statValue < value : statValue > value;
     }
 
+    @Override
+    public String id() {
+        return "stat_threshold";
+    }
+
     public String getStat() { return stat; }
     public String getComparison() { return comparison; }
     public double getValue() { return value; }

@@ -6,6 +6,14 @@ maxLevel: 3
 applicableTo:
   - ARMOR
 
+catalog:
+  tags:
+    - offense
+    - emergency
+  items:
+    - armor
+  order: 70
+
 trigger:
   type: on_damage_taken
 

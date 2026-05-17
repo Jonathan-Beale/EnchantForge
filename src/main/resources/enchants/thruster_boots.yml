@@ -8,6 +8,15 @@ applicableTo:
   - DIAMOND_BOOTS
   - NETHERITE_BOOTS
 
+catalog:
+  tags:
+    - mobility
+    - tech
+  items:
+    - armor
+    - boots
+  order: 90
+
 trigger:
   type: on_suit_jump
 

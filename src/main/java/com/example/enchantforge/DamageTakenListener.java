@@ -4,8 +4,6 @@ import com.example.enchantforge.condition.AbsorptionDepletedCondition;
 import com.example.enchantforge.condition.DamagedCondition;
 import com.example.enchantforge.condition.FullHealthOrDamagedCondition;
 import com.example.enchantforge.condition.StatThresholdCondition;
-import com.example.enchantforge.trigger.OnDamageTakenTrigger;
-import com.example.enchantforge.trigger.OnEquipTrigger;
 import com.example.enchantforge.trigger.StatThresholdTrigger;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -64,7 +62,7 @@ public class DamageTakenListener implements Listener {
         // FullHealthOrDamagedCondition) enchants, including those on unequipped armor,
         // so mid-combat equipping can't bypass the interrupt.
         for (CustomEnchant enchant : registry.getAll()) {
-            if (enchant.getTrigger() instanceof OnEquipTrigger
+            if ("on_equip".equals(enchant.getTrigger().id())
                     && (enchant.getEndCondition() instanceof DamagedCondition
                         || enchant.getEndCondition() instanceof FullHealthOrDamagedCondition)
                     && enchant.hasCooldown()) {
@@ -151,11 +149,12 @@ public class DamageTakenListener implements Listener {
     // -------------------------------------------------------------------------
 
     private boolean fires(CustomEnchant enchant, Player player, double resultingHealth) {
-        return switch (enchant.getTrigger()) {
-            case OnDamageTakenTrigger t -> true;
-            case StatThresholdTrigger t -> t.matches(player, resultingHealth);
-            default -> false;
-        };
+        String triggerId = enchant.getTrigger().id();
+        if ("on_damage_taken".equals(triggerId)) return true;
+        if ("stat_threshold".equals(triggerId) && enchant.getTrigger() instanceof StatThresholdTrigger t) {
+            return t.matches(player, resultingHealth);
+        }
+        return false;
     }
 
     private void resolveEndConditions(Player player, double resultingHealth, boolean damageEvent) {
@@ -226,23 +225,14 @@ public class DamageTakenListener implements Listener {
                     expectedAbs = Math.max(expectedAbs, e.getValue() * 4.0);
                 }
             }
-            if (maxRefreshTicks > 0 && player.getAbsorptionAmount() < expectedAbs - 0.01) {
-                player.setCooldown(piece.getType(), maxRefreshTicks);
-            }
+            // Intentionally skip vanilla item cooldown visuals. They are material-wide and can
+            // incorrectly suggest unrelated same-type items are on cooldown.
         }
     }
 
-    /** Sets our internal cooldown and mirrors it to vanilla's item cooldown system for visual feedback. */
+    /** Sets only our internal per-enchant cooldown. */
     private void applyCooldown(Player player, CustomEnchant enchant) {
         cooldowns.setCooldown(player, enchant);
-        if (!enchant.hasCooldown()) return;
-        int ticks = enchant.getCooldownTicks();
-        for (ItemStack piece : player.getInventory().getArmorContents()) {
-            if (piece != null && piece.getType() != Material.AIR
-                    && registry.getLevel(piece, enchant) > 0) {
-                player.setCooldown(piece.getType(), ticks);
-            }
-        }
     }
 
     private void resolveAbsorptionDepleted(Player player) {

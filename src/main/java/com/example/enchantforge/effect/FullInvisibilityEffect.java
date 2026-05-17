@@ -13,6 +13,9 @@ public class FullInvisibilityEffect implements EnchantEffect {
     private FullInvisibilityEffect() {}
 
     @Override
+    public String id() { return "full_invisibility"; }
+
+    @Override
     public void apply(Player player, int enchantLevel, int durationTicks) {
         VisibilityUtil.hide(player);
         // Invisibility potion suppresses vanilla mob line-of-sight checks as a secondary layer

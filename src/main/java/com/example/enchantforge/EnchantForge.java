@@ -1,6 +1,7 @@
 package com.example.enchantforge;
 
 import com.example.enchantforge.effect.EnergyManager;
+import com.example.enchantforge.effect.MorphFormEffect;
 import com.example.enchantforge.effect.WolfFormEffect;
 import org.bukkit.NamespacedKey;
 import org.bukkit.command.CommandSender;
@@ -26,8 +27,10 @@ public class EnchantForge extends JavaPlugin {
         saveDefaultConfig();
         saveResource("ui/main.json", false);
         EnchantDebug.init(getLogger());
+        CooldownVisuals.init(this);
         VisibilityUtil.init(this);
         WolfFormEffect.init(this);
+        MorphFormEffect.init(this);
         EnergyManager.init(this);
 
         registry = new EnchantmentRegistry();
@@ -66,6 +69,8 @@ public class EnchantForge extends JavaPlugin {
         EnchantCommand cmd = new EnchantCommand(this);
         getCommand("cenchant").setExecutor(cmd);
         getCommand("cenchant").setTabCompleter(cmd);
+
+        getCommand("ctestcooldown").setExecutor(new CooldownTestCommand());
 
         getLogger().info("Loaded " + registry.getAll().size() + " enchantment(s).");
         getLogger().info("EnchantForge enabled!");

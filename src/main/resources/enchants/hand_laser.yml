@@ -8,6 +8,15 @@ applicableTo:
   - NETHERITE_INGOT
   - BLAZE_ROD
 
+catalog:
+  tags:
+    - offense
+    - tech
+  items:
+    - offhand
+    - gauntlet
+  order: 120
+
 trigger:
   type: on_right_click
 

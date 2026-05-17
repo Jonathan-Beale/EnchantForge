@@ -2,6 +2,15 @@ displayName: "Reactive Guard"
 maxLevel: 3
 applicableTo:
   - ARMOR
+
+catalog:
+  tags:
+    - defense
+    - emergency
+  items:
+    - armor
+  order: 50
+
 trigger:
   type: stat_threshold
   stat: health

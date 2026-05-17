@@ -1,6 +1,5 @@
 package com.example.enchantforge;
 
-import com.example.enchantforge.trigger.OnRightClickTrigger;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
@@ -13,9 +12,8 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -45,43 +43,63 @@ public class RightClickListener implements Listener {
         if (action != Action.RIGHT_CLICK_AIR && action != Action.RIGHT_CLICK_BLOCK) return;
 
         Player player = event.getPlayer();
+        if (isCooldownVisualDebugEnabled()) {
+            plugin.getLogger().info("[cooldown-visuals] interact action=" + action
+                + " hand=" + event.getHand()
+                + " player=" + player.getName());
+        }
         // Deduplicate: Bukkit fires this event once per hand; only process the first one per click
         if (!firedThisTick.add(player.getUniqueId())) return;
         plugin.getServer().getScheduler().runTask(plugin, () -> firedThisTick.remove(player.getUniqueId()));
         ItemStack mainHand = player.getInventory().getItemInMainHand();
 
-        Map<NamespacedKey, List<Integer>> triggered = new LinkedHashMap<>();
+        Map<NamespacedKey, List<Integer>> triggered = TriggerDispatchService.newTriggeredMap();
 
         // Check main hand
         if (mainHand.getType() != Material.AIR) {
-            registry.getEnchants(mainHand).forEach((enchant, level) -> {
-                if (!(enchant.getTrigger() instanceof OnRightClickTrigger)) return;
-                if (cooldowns.isOnCooldown(player, enchant)) return;
-                triggered.computeIfAbsent(enchant.getKey(), k -> new ArrayList<>()).add(level);
-            });
+            TriggerDispatchService.collectTriggered(
+                    triggered,
+                    registry.getEnchants(mainHand),
+                    "on_right_click",
+                    player,
+                    cooldowns,
+                    mainHand
+            );
         }
 
         // Check equipped armor slots
         for (ItemStack armor : player.getInventory().getArmorContents()) {
             if (armor == null || armor.getType() == Material.AIR) continue;
-            registry.getEnchants(armor).forEach((enchant, level) -> {
-                if (!(enchant.getTrigger() instanceof OnRightClickTrigger)) return;
-                if (cooldowns.isOnCooldown(player, enchant)) return;
-                triggered.computeIfAbsent(enchant.getKey(), k -> new ArrayList<>()).add(level);
-            });
+            TriggerDispatchService.collectTriggered(
+                    triggered,
+                    registry.getEnchants(armor),
+                    "on_right_click",
+                    player,
+                    cooldowns,
+                    armor
+            );
         }
 
         // Check off-hand (gauntlet slot)
         ItemStack offHand = player.getInventory().getItemInOffHand();
         if (offHand.getType() != Material.AIR) {
-            registry.getEnchants(offHand).forEach((enchant, level) -> {
-                if (!(enchant.getTrigger() instanceof OnRightClickTrigger)) return;
-                if (cooldowns.isOnCooldown(player, enchant)) return;
-                triggered.computeIfAbsent(enchant.getKey(), k -> new ArrayList<>()).add(level);
-            });
+            TriggerDispatchService.collectTriggered(
+                    triggered,
+                    registry.getEnchants(offHand),
+                    "on_right_click",
+                    player,
+                    cooldowns,
+                    offHand
+            );
         }
 
-        if (triggered.isEmpty()) return;
+        if (triggered.isEmpty()) {
+            if (isCooldownVisualDebugEnabled()) {
+                logRightClickCandidates(player, mainHand, offHand);
+                plugin.getLogger().info("[cooldown-visuals] no right-click enchant triggered for player=" + player.getName());
+            }
+            return;
+        }
         event.setCancelled(true);
 
         triggered.forEach((key, levels) -> {
@@ -106,13 +124,81 @@ public class RightClickListener implements Listener {
             }
 
             if (enchant.hasCooldown()) {
-                cooldowns.setCooldown(player, enchant);
-                if (mainHand.getType() != Material.AIR)
-                    player.setCooldown(mainHand.getType(), enchant.getCooldownTicks());
+                CooldownVisualSource visualSource = findCooldownVisualSource(player, enchant, mainHand, offHand);
+                if (visualSource != null && visualSource.item() != null && visualSource.item().getType() != Material.AIR) {
+                    cooldowns.setCooldown(player, enchant, visualSource.item());
+                    if (visualSource.mainHand()) {
+                        CooldownVisuals.applyMainHandCooldown(player, enchant.getCooldownTicks());
+                    } else {
+                        CooldownVisuals.applyItemCooldown(player, visualSource.item(), enchant.getCooldownTicks());
+                    }
+                    if (isCooldownVisualDebugEnabled()) {
+                        plugin.getLogger().info("[cooldown-visuals] right-click source=" + visualSource.item().getType()
+                                + " slot=" + visualSource.slot()
+                                + " enchant=" + enchant.getKey().getKey()
+                                + " player=" + player.getName()
+                                + " ticks=" + enchant.getCooldownTicks());
+                    }
+                } else if (isCooldownVisualDebugEnabled()) {
+                    plugin.getLogger().info("[cooldown-visuals] right-click no source enchant="
+                            + enchant.getKey().getKey() + " player=" + player.getName());
+                } else {
+                    cooldowns.setCooldown(player, enchant);
+                }
                 EnchantDebug.log(enchant, player, "cooldown started (" + (enchant.getCooldownTicks() / 20) + "s)");
             }
         });
     }
+
+    private CooldownVisualSource findCooldownVisualSource(Player player, CustomEnchant enchant, ItemStack mainHand, ItemStack offHand) {
+        if (mainHand != null && mainHand.getType() != Material.AIR && registry.getLevel(mainHand, enchant) > 0) {
+            return new CooldownVisualSource(player.getInventory().getItemInMainHand(), true, "main");
+        }
+        if (offHand != null && offHand.getType() != Material.AIR && registry.getLevel(offHand, enchant) > 0) {
+            return new CooldownVisualSource(player.getInventory().getItemInOffHand(), false, "off");
+        }
+        for (ItemStack armor : player.getInventory().getArmorContents()) {
+            if (armor == null || armor.getType() == Material.AIR) continue;
+            if (registry.getLevel(armor, enchant) > 0) {
+                return new CooldownVisualSource(armor, false, "armor");
+            }
+        }
+        return null;
+    }
+
+    private void logRightClickCandidates(Player player, ItemStack mainHand, ItemStack offHand) {
+        List<String> candidates = new ArrayList<>();
+        collectRightClickCandidates(player, candidates, "main", registry.getEnchants(mainHand));
+        collectRightClickCandidates(player, candidates, "off", registry.getEnchants(offHand));
+        for (ItemStack armor : player.getInventory().getArmorContents()) {
+            if (armor == null || armor.getType() == Material.AIR) continue;
+            collectRightClickCandidates(player, candidates, "armor", registry.getEnchants(armor));
+        }
+        if (candidates.isEmpty()) {
+            plugin.getLogger().info("[cooldown-visuals] no on_right_click candidates found for player=" + player.getName());
+            return;
+        }
+        for (String line : candidates) {
+            plugin.getLogger().info("[cooldown-visuals] " + line);
+        }
+    }
+
+    private void collectRightClickCandidates(Player player, List<String> out, String slot, Map<CustomEnchant, Integer> enchants) {
+        enchants.forEach((enchant, level) -> {
+            if (!"on_right_click".equals(enchant.getTrigger().id())) return;
+                boolean onCooldown = cooldowns.isOnCooldown(player, enchant);
+            out.add("candidate slot=" + slot
+                    + " enchant=" + enchant.getKey().getKey()
+                    + " level=" + level
+                    + " onCooldown=" + onCooldown);
+        });
+    }
+
+    private boolean isCooldownVisualDebugEnabled() {
+        return plugin.getConfig().getBoolean("debug.cooldownVisuals", false);
+    }
+
+    private record CooldownVisualSource(ItemStack item, boolean mainHand, String slot) {}
 
     /** Mobs cannot target shadow-veiled players. */
     @EventHandler

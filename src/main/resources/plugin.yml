@@ -11,7 +11,16 @@ commands:
     permission: enchantforge.cenchant
     permission-message: You don't have permission to use this command.
 
+  ctestcooldown:
+    description: Test held-item cooldown isolation
+    usage: /ctestcooldown
+    permission: enchantforge.ctestcooldown
+    permission-message: You don't have permission to use this command.
+
 permissions:
   enchantforge.cenchant:
     description: Allows applying custom enchantments.
+    default: op
+  enchantforge.ctestcooldown:
+    description: Allows testing cooldown visuals.
     default: op

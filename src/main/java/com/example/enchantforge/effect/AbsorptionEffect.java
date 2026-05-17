@@ -24,6 +24,9 @@ public class AbsorptionEffect implements EnchantEffect {
     }
 
     @Override
+    public String id() { return "absorption"; }
+
+    @Override
     public void apply(Player player, int enchantLevel, int durationTicks) {
         double amount = enchantLevel * 4.0;
         AttributeInstance attr = player.getAttribute(Attribute.MAX_ABSORPTION);

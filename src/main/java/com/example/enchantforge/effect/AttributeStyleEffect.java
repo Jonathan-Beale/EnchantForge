@@ -38,6 +38,9 @@ public class AttributeStyleEffect implements EnchantEffect {
     }
 
     @Override
+    public String id() { return "attribute"; }
+
+    @Override
     public void apply(Player player, int enchantLevel, int durationTicks) {
         AttributeInstance attr = player.getAttribute(attribute);
         if (attr == null) return;
@@ -52,6 +55,8 @@ public class AttributeStyleEffect implements EnchantEffect {
     }
 
     public double getAmountPerLevel() { return amountPerLevel; }
+
+    public EquipmentSlotGroup getSlotGroup() { return slotGroup; }
 
     private static Attribute resolveAttribute(String name) {
         try {

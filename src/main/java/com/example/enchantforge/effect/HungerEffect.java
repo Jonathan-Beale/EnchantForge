@@ -20,6 +20,9 @@ public class HungerEffect implements EnchantEffect {
     }
 
     @Override
+    public String id() { return "hunger"; }
+
+    @Override
     public void apply(Player player, int enchantLevel, int durationTicks) {
         int foodAdd  = (int) Math.round(foodPerLevel * enchantLevel);
         float satAdd = (float) (saturationPerLevel * enchantLevel);

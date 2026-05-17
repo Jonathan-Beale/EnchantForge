@@ -29,6 +29,9 @@ public class HealEffect implements EnchantEffect {
         return new HealEffect(percent, overheal, overhealKey);
     }
 
+    @Override
+    public String id() { return "heal"; }
+
     public void healForDamage(Player player, int level, double damage) {
         double healAmount = percentPerLevel * level * damage;
         double maxHp = player.getAttribute(Attribute.MAX_HEALTH).getValue();
@@ -58,6 +61,12 @@ public class HealEffect implements EnchantEffect {
     @Override
     public void apply(Player player, int enchantLevel, int durationTicks) {
         // Context-free fallback — actual heal goes through healForDamage()
+    }
+
+    @Override
+    public void apply(Player player, int enchantLevel, int durationTicks, EnchantEffectContext context) {
+        if (context == null || !context.hasDealtDamage()) return;
+        healForDamage(player, enchantLevel, context.dealtDamage());
     }
 
     @Override

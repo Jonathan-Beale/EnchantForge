@@ -1,9 +1,7 @@
 package com.example.enchantforge;
 
-import com.example.enchantforge.effect.HealEffect;
-import com.example.enchantforge.trigger.OnDealDamageTrigger;
+import com.example.enchantforge.effect.EnchantEffectContext;
 import org.bukkit.Material;
-import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -11,8 +9,6 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -36,29 +32,32 @@ public class DamageDealtListener implements Listener {
         double finalDamage = event.getFinalDamage();
         if (finalDamage <= 0) return;
 
-        Map<NamespacedKey, List<Integer>> triggered = new LinkedHashMap<>();
-        registry.getEnchants(weapon).forEach((enchant, level) -> {
-            if (!(enchant.getTrigger() instanceof OnDealDamageTrigger)) return;
-            if (cooldowns.isOnCooldown(player, enchant)) return;
-            triggered.computeIfAbsent(enchant.getKey(), k -> new ArrayList<>()).add(level);
-        });
+        Map<org.bukkit.NamespacedKey, List<Integer>> triggered = TriggerDispatchService.newTriggeredMap();
+        TriggerDispatchService.collectTriggered(
+                triggered,
+                registry.getEnchants(weapon),
+                "on_deal_damage",
+                player,
+            cooldowns,
+            weapon
+        );
 
-        triggered.forEach((key, levels) -> {
-            CustomEnchant enchant = registry.get(key);
-            if (enchant == null) return;
-            int effectiveLevel = enchant.getStackBehavior().compute(levels);
-            if (enchant.getEffect() instanceof HealEffect healEffect) {
-                healEffect.healForDamage(player, effectiveLevel, finalDamage);
-            } else {
-                enchant.apply(player, effectiveLevel);
-            }
+        TriggerDispatchService.executeTriggered(
+                triggered,
+                registry,
+                player,
+                (enchant, effectiveLevel) -> {
+            EnchantEffectContext context = EnchantEffectContext.fromDealDamage(finalDamage);
+            enchant.apply(player, effectiveLevel, context);
             EnchantDebug.log(enchant, player, "deal-damage-triggered lv" + effectiveLevel
                     + " (+" + String.format("%.1f", finalDamage) + " dmg)");
-            if (enchant.hasCooldown()) {
-                cooldowns.setCooldown(player, enchant);
-                player.setCooldown(weapon.getType(), enchant.getCooldownTicks());
-                EnchantDebug.log(enchant, player, "cooldown started (" + (enchant.getCooldownTicks() / 20) + "s)");
-            }
-        });
+                },
+                enchant -> {
+                    cooldowns.setCooldown(player, enchant, weapon);
+                    CooldownVisuals.applyMainHandCooldown(player, enchant.getCooldownTicks());
+                    EnchantDebug.log(enchant, player, "cooldown started (" + (enchant.getCooldownTicks() / 20) + "s)");
+                },
+                "deal-damage-triggered"
+        );
     }
 }

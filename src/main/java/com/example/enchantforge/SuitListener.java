@@ -2,7 +2,6 @@ package com.example.enchantforge;
 
 import com.example.enchantforge.effect.EnergyManager;
 import com.example.enchantforge.effect.ThrusterEffect;
-import com.example.enchantforge.trigger.OnSuitJumpTrigger;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextColor;
 import org.bukkit.Bukkit;
@@ -205,7 +204,7 @@ public class SuitListener implements Listener {
         ItemStack boots = player.getInventory().getBoots();
         if (boots == null || boots.getType() == Material.AIR) return;
         for (Map.Entry<CustomEnchant, Integer> e : registry.getEnchants(boots).entrySet()) {
-            if (!(e.getKey().getTrigger() instanceof OnSuitJumpTrigger)) continue;
+            if (!"on_suit_jump".equals(e.getKey().getTrigger().id())) continue;
             if (!(e.getKey().getEffect()  instanceof ThrusterEffect t))  continue;
             t.fire(player, e.getValue(), chargeTicks);
             break;

@@ -2,6 +2,15 @@ displayName: "Last Stand"
 maxLevel: 3
 applicableTo:
   - ARMOR
+
+catalog:
+  tags:
+    - sustain
+    - emergency
+  items:
+    - armor
+  order: 60
+
 trigger:
   type: stat_threshold
   stat: health

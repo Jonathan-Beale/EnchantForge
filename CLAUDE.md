@@ -11,6 +11,7 @@ run via `saveResource`.
 **Build:** Gradle (`.\gradlew.bat build`), output at `build/libs/EnchantForge-1.0-SNAPSHOT.jar`
 **Deploy:** `server\build-EnchantForge.bat` builds and copies the jar into `server\plugins\`
 **Reload in-game:** `/cenchant reload` (re-reads all YAML files and config without restart)
+**Cooldown diagnostic command:** `/ctestcooldown` (applies a short cooldown to the held item)
 
 ---
 
@@ -22,7 +23,7 @@ src/main/java/com/example/enchantforge/
   CustomEnchant.java             — the core data object, loaded from YAML
   EnchantmentRegistry.java       — holds all loaded enchants, reads them off ItemStacks
   EnchantDebug.java              — per-enchant debug logging utility (see Debug section)
-  CooldownManager.java           — player × enchant → expiry timestamp
+  CooldownManager.java           — cooldown store (item-aware for item triggers, global for passive armor logic)
   ActiveEffectTracker.java       — player × enchant → effective level (for tracked effects)
   CombatTracker.java             — player → last-hit timestamp (for out-of-combat regen)
   StackBehavior.java             — enum: SUM / HIGHEST / EXCLUSIVE
@@ -180,9 +181,17 @@ Fires in `DamageTakenListener.onDamageTaken`. Skipped if on cooldown or already 
 applying, either starts tracking (if `requiresTracking`) or sets cooldown directly.
 
 ### Cooldowns
-`CooldownManager` stores `expiry = currentTimeMs + (cooldownTicks × 50)`. A cooldown on an
-on_equip+DamagedCondition enchant is set for ALL armor pieces on any hit (not just equipped ones)
-to prevent mid-combat equip exploits.
+`CooldownManager` stores `expiry = currentTimeMs + (cooldownTicks × 50)`.
+
+For item-triggered enchants (right click, main-hand deal-damage, kill), cooldowns are keyed by
+`player + enchant + item-id`, so two same-material items do not share internal cooldown state.
+
+For passive armor interruption logic (for example `on_equip + damaged`), cooldown behavior remains
+`player + enchant` scoped to preserve anti-equip-swap protections.
+
+Vanilla/Paper visuals are cooldown-group based, not object-identity based. `CooldownVisuals`
+assigns a unique cooldown group per tracked stack so same-material items do not inherit each
+other's visual cooldown.
 
 ---
 
@@ -208,6 +217,10 @@ the server console prefixed `[debug|enchant_key] PlayerName — event`.
 `EnchantDebug.log(enchant, player, msg)` short-circuits immediately when `enchant.isDebug()` is
 false — no string allocation, no overhead. The lazy-init `Set` in the damage handler prevents
 duplicate skip messages when the same enchant appears on multiple armor pieces.
+
+Cooldown diagnostics:
+- Enable `debug.cooldownVisuals: true` in `plugins/EnchantForge/config.yml`.
+- Use `/ctestcooldown` while holding an item to verify item-isolated cooldown behavior.
 
 ---
 

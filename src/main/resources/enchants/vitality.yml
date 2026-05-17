@@ -5,6 +5,14 @@ maxLevel: 3
 applicableTo:
   - ARMOR
 
+catalog:
+  tags:
+    - sustain
+    - defense
+  items:
+    - armor
+  order: 30
+
 trigger:
   type: on_equip
 

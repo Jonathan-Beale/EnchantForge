@@ -6,6 +6,17 @@ applicableTo:
   - _SWORD
   - _AXE
 
+catalog:
+  tags:
+    - sustain
+    - offense
+  items:
+    - weapon
+    - melee
+    - sword
+    - axe
+  order: 140
+
 trigger:
   type: on_deal_damage
 

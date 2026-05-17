@@ -3,6 +3,7 @@ package com.example.enchantforge;
 import com.example.enchantforge.condition.EndCondition;
 import com.example.enchantforge.condition.NeverCondition;
 import com.example.enchantforge.effect.EnchantEffect;
+import com.example.enchantforge.effect.EnchantEffectContext;
 import com.example.enchantforge.trigger.EnchantTrigger;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -33,13 +34,14 @@ public class CustomEnchant {
     private final String descriptionTemplate;
     private final double displayAmountPerLevel;
     private final boolean debug;
+    private final CatalogMetadata catalogMetadata;
 
     private CustomEnchant(NamespacedKey key, String displayName, int maxLevel,
                           EnchantTrigger trigger, EnchantEffect effect, EndCondition endCondition,
                           int cooldownTicks, int outOfCombatRefreshTicks, double outOfCombatRegenPerTick,
                           StackBehavior stackBehavior,
                           List<String> applicableTo, String descriptionTemplate,
-                          double displayAmountPerLevel, boolean debug) {
+                          double displayAmountPerLevel, boolean debug, CatalogMetadata catalogMetadata) {
         this.key = key;
         this.displayName = displayName;
         this.maxLevel = maxLevel;
@@ -54,6 +56,7 @@ public class CustomEnchant {
         this.descriptionTemplate = descriptionTemplate;
         this.displayAmountPerLevel = displayAmountPerLevel;
         this.debug = debug;
+        this.catalogMetadata = catalogMetadata;
     }
 
     public static CustomEnchant fromYaml(NamespacedKey key, ConfigurationSection section) {
@@ -76,10 +79,11 @@ public class CustomEnchant {
         String descriptionTemplate = section.getString("description", "");
         List<String> applicableTo = section.getStringList("applicableTo");
         boolean debug = section.getBoolean("debug", false);
+        CatalogMetadata catalogMetadata = CatalogMetadata.fromYaml(section.getConfigurationSection("catalog"));
 
         return new CustomEnchant(key, displayName, maxLevel, trigger, effect, endCondition,
                 cooldownTicks, outOfCombatRefreshTicks, outOfCombatRegenPerTick, stackBehavior,
-                applicableTo, descriptionTemplate, displayAmountPerLevel, debug);
+            applicableTo, descriptionTemplate, displayAmountPerLevel, debug, catalogMetadata);
     }
 
     // -------------------------------------------------------------------------
@@ -99,6 +103,24 @@ public class CustomEnchant {
     public double getOutOfCombatRegenPerTick() { return outOfCombatRegenPerTick; }
     public List<String> getApplicableTo() { return applicableTo; }
     public String getDescription() { return descriptionTemplate; }
+    public CatalogMetadata getCatalogMetadata() { return catalogMetadata; }
+        public String getDurationLabel() { return endCondition.getDisplayLabel(); }
+        public String getCooldownLabel() { return cooldownTicks <= 0 ? "none" : formatTicksAsSeconds(cooldownTicks); }
+
+        public String resolveDescription(int level) {
+        if (descriptionTemplate == null || descriptionTemplate.isBlank()) return "";
+        double amount = displayAmountPerLevel * level;
+        String amountStr = (amount == Math.floor(amount))
+            ? String.valueOf((int) amount)
+            : String.format("%.2f", amount);
+        String refreshStr = outOfCombatRefreshTicks <= 0 ? "never" : formatTicksAsSeconds(outOfCombatRefreshTicks);
+        return descriptionTemplate
+            .replace("{amount}", amountStr)
+            .replace("{level}", String.valueOf(level))
+            .replace("{duration}", getDurationLabel())
+            .replace("{cooldown}", getCooldownLabel())
+            .replace("{refresh}", refreshStr);
+        }
 
     public boolean canApplyTo(Material material) {
         String name = material.name();
@@ -113,7 +135,11 @@ public class CustomEnchant {
     }
 
     public void apply(Player player, int level) {
-        effect.apply(player, level, endCondition.getEffectDurationTicks());
+        apply(player, level, EnchantEffectContext.NONE);
+    }
+
+    public void apply(Player player, int level, EnchantEffectContext context) {
+        effect.apply(player, level, endCondition.getEffectDurationTicks(), context);
     }
 
     public void remove(Player player) {
@@ -139,22 +165,17 @@ public class CustomEnchant {
     }
 
     private Component buildDescriptionLine(int level) {
-        double amount = displayAmountPerLevel * level;
-        String amountStr = (amount == Math.floor(amount))
-                ? String.valueOf((int) amount)
-                : String.format("%.2f", amount);
-        String cooldownStr = cooldownTicks <= 0 ? "none" : (cooldownTicks / 20) + "s";
-        String refreshStr = outOfCombatRefreshTicks <= 0 ? "never" : (outOfCombatRefreshTicks / 20) + "s";
-        String line = descriptionTemplate
-                .replace("{amount}", amountStr)
-                .replace("{level}", String.valueOf(level))
-                .replace("{duration}", endCondition.getDisplayLabel())
-                .replace("{cooldown}", cooldownStr)
-                .replace("{refresh}", refreshStr);
+        String line = resolveDescription(level);
         return Component.text(" " + line)
                 .color(NamedTextColor.DARK_GRAY)
                 .decoration(TextDecoration.ITALIC, false);
     }
+
+        private static String formatTicksAsSeconds(int ticks) {
+        if (ticks <= 0) return "0s";
+        if (ticks % 20 == 0) return (ticks / 20) + "s";
+        return String.format("%.1fs", ticks / 20.0);
+        }
 
     public static String toRoman(int level) {
         return switch (level) {

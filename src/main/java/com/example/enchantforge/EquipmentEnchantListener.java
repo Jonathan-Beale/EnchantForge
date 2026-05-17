@@ -2,7 +2,6 @@ package com.example.enchantforge;
 
 import com.destroystokyo.paper.event.player.PlayerArmorChangeEvent;
 import com.example.enchantforge.condition.FullHealthOrDamagedCondition;
-import com.example.enchantforge.trigger.OnEquipTrigger;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.NamespacedKey;
 import org.bukkit.attribute.Attribute;
@@ -82,7 +81,7 @@ public class EquipmentEnchantListener implements Listener {
         Map<NamespacedKey, List<Integer>> needed = new LinkedHashMap<>();
         for (ItemStack piece : player.getInventory().getArmorContents()) {
             registry.getEnchants(piece).forEach((enchant, level) -> {
-                if (enchant.getTrigger() instanceof OnEquipTrigger
+                if ("on_equip".equals(enchant.getTrigger().id())
                         && enchant.getEndCondition().requiresTracking()
                         && !tracker.isTracked(player, enchant)
                         && !cooldowns.isOnCooldown(player, enchant)
@@ -109,7 +108,7 @@ public class EquipmentEnchantListener implements Listener {
         Map<NamespacedKey, List<Integer>> candidates = new LinkedHashMap<>();
         for (ItemStack piece : player.getInventory().getArmorContents()) {
             registry.getEnchants(piece).forEach((enchant, level) -> {
-                if (enchant.getTrigger() instanceof OnEquipTrigger
+                if ("on_equip".equals(enchant.getTrigger().id())
                         && enchant.hasOutOfCombatRefresh()
                         && combatTracker.millisSinceLastHit(player.getUniqueId())
                             >= enchant.getOutOfCombatRefreshTicks() * 50L) {
@@ -142,7 +141,7 @@ public class EquipmentEnchantListener implements Listener {
         Map<NamespacedKey, List<Integer>> collected = new LinkedHashMap<>();
         for (ItemStack piece : armor) {
             registry.getEnchants(piece).forEach((enchant, level) -> {
-                if (enchant.getTrigger() instanceof OnEquipTrigger) {
+                if ("on_equip".equals(enchant.getTrigger().id())) {
                     collected.computeIfAbsent(enchant.getKey(), k -> new ArrayList<>()).add(level);
                 }
             });
@@ -170,7 +169,7 @@ public class EquipmentEnchantListener implements Listener {
 
     private void removeOnEquip(Player player) {
         for (CustomEnchant enchant : registry.getAll()) {
-            if (enchant.getTrigger() instanceof OnEquipTrigger) {
+            if ("on_equip".equals(enchant.getTrigger().id())) {
                 if (tracker.isTracked(player, enchant))
                     EnchantDebug.log(enchant, player, "on_equip removed (armor change)");
                 enchant.remove(player);

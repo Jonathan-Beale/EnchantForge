@@ -9,6 +9,15 @@ applicableTo:
   - NETHERITE_HELMET
   - TURTLE_HELMET
 
+catalog:
+  tags:
+    - tech
+    - utility
+  items:
+    - armor
+    - helmet
+  order: 100
+
 trigger:
   type: on_equip
 

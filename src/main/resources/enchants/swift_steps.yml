@@ -2,6 +2,16 @@ displayName: "Swift Steps"
 maxLevel: 3
 applicableTo:
   - _BOOTS
+
+catalog:
+  tags:
+    - mobility
+    - utility
+  items:
+    - armor
+    - boots
+  order: 80
+
 trigger:
   type: on_equip
 effect:

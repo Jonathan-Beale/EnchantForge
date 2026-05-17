@@ -9,6 +9,15 @@ applicableTo:
   - NETHERITE_HELMET
   - TURTLE_HELMET
 
+catalog:
+  tags:
+    - offense
+    - tech
+  items:
+    - armor
+    - helmet
+  order: 110
+
 trigger:
   type: on_right_click
 

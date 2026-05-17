@@ -29,6 +29,9 @@ public class HandLaserEffect implements EnchantEffect {
                 section.getDouble("energy_cost", 15.0));
     }
 
+        @Override
+        public String id() { return "hand_laser"; }
+
     @Override
     public void apply(Player player, int level, int durationTicks) {
         if (!EnergyManager.tryConsume(player, energyCost)) {
