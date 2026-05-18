@@ -9,43 +9,43 @@ Four classes/utilities to implement, followed by updates to their consumers and 
 ## Checklist
 
 **Phase 1 — Generalization**
-- [ ] [§1 `EnchantEffectContext`](#1-enchanteffectcontext--extensible-key-value-context) — extensible key-value context; add `TRIGGER_ID` key
-- [ ] [§2 `PlayerLifecycleRegistry`](#2-playerlifecycleregistry--declarative-session-cleanup) — declarative lifecycle cleanup; delete `PlayerSessionListener`
-- [ ] [§3 `StackingDispatcher`](#3-stackingdispatcher--collect-stack-dispatch-utility) — DRY collect-stack-dispatch; add `collectFromArmorSlots`; collapse double-dispatch with `NONE`
-- [ ] [§4 `PlayerResourcePool`](#4-playerresourcepool--generalized-lazy-regen-resource) — replace `EnergyManager` singleton; delete `EnergyManager`
+- [x] [§1 `EnchantEffectContext`](#1-enchanteffectcontext--extensible-key-value-context) — extensible key-value context; add `TRIGGER_ID` key
+- [x] [§2 `PlayerLifecycleRegistry`](#2-playerlifecycleregistry--declarative-session-cleanup) — declarative lifecycle cleanup; delete `PlayerSessionListener`
+- [x] [§3 `StackingDispatcher`](#3-stackingdispatcher--collect-stack-dispatch-utility) — DRY collect-stack-dispatch; add `collectFromArmorSlots`; collapse double-dispatch with `NONE`
+- [x] [§4 `PlayerResourcePool`](#4-playerresourcepool--generalized-lazy-regen-resource) — replace `EnergyManager` singleton; delete `EnergyManager`
 
 **Phase 2 — Correctness**
-- [ ] [§5 Cooldown persistence](#5-cooldown-persistence--survive-reloadrestart) — serialize to `cooldowns.yml` on disable/reload
-- [ ] [§6 YAML error isolation](#6-yaml-load-error-isolation) — per-file try-catch in `loadEnchantments()`
+- [x] [§5 Cooldown persistence](#5-cooldown-persistence--survive-reloadrestart) — serialize to `cooldowns.yml` on disable/reload
+- [x] [§6 YAML error isolation](#6-yaml-load-error-isolation) — per-file try-catch in `loadEnchantments()`
 
 **Phase 3 — Tests**
-- [ ] [§7 Test coverage](#7-test-coverage--core-logic) — `StackBehaviorTest`, `CooldownManagerTest`, `EnchantEffectContextTest`
+- [x] [§7 Test coverage](#7-test-coverage--core-logic) — `StackBehaviorTest`, `CooldownManagerTest`, `EnchantEffectContextTest`
 
 **Phase 4 — Cleanup**
-- [ ] [§8 Remove `config.json`](#8-configjson--remove-dead-code) — delete legacy stub and its `saveResource` call
-- [ ] [§9 Resource pack hash-check](#9-resource-pack--skip-redundant-regeneration) — skip regeneration when pack is unchanged
+- [x] [§8 Remove `config.json`](#8-configjson--remove-dead-code) — delete legacy stub and its `saveResource` call
+- [x] [§9 Resource pack hash-check](#9-resource-pack--skip-redundant-regeneration) — skip regeneration when pack is unchanged
 - [ ] [§10 Registry singletons *(optional)*](#10-registry-singletons--instance-wiring-low-priority) — constructor-inject `EnchantTriggerTypeRegistry`, `EnchantEffectTypeRegistry`
 - [ ] [§11 `StackBehavior.AVERAGE` *(optional)*](#11-stackbehavior--add-average-low-priority) — add averaging stack mode
 
 **Phase 5 — Bug Fixes**
-- [ ] [§12 `StatThreshold` attribute lookup](#12-statthresholdtrigger--statthresholdcondition--broken-attribute-lookup) — replace broken reflection with `Registry.ATTRIBUTE`; log on failure
-- [ ] [§13 `StatThreshold` null YAML fields](#13-statthresholdtrigger--statthresholdcondition--null-fields-from-yaml) — validate `stat` and `comparison` at load time
-- [ ] [§14 Inverted comparison default](#14-statthresholdtrigger-vs-statthresholdcondition--inverted-comparison-default) — align default and validate at load time
+- [x] [§12 `StatThreshold` attribute lookup](#12-statthresholdtrigger--statthresholdcondition--broken-attribute-lookup) — replace broken reflection with `Registry.ATTRIBUTE`; log on failure
+- [x] [§13 `StatThreshold` null YAML fields](#13-statthresholdtrigger--statthresholdcondition--null-fields-from-yaml) — validate `stat` and `comparison` at load time
+- [x] [§14 Inverted comparison default](#14-statthresholdtrigger-vs-statthresholdcondition--inverted-comparison-default) — align default and validate at load time
 
 **Phase 6 — Hardening**
-- [ ] [§15 `WolfFormEffect` null check](#15-wolfformeffect--missing-plugin-null-check) — guard `apply()` against pre-`init()` call
-- [ ] [§16 Scoreboard team duplication](#16-wolfformeffect--morphformeffect--scoreboard-team-code-duplication) — extract shared `ScoreboardTeamUtil`
-- [ ] [§17 `CooldownVisuals` reflection](#17-cooldownvisuals--unnecessary-reflection-for-paper-1214) — replace with direct call; remove fallback machinery
-- [ ] [§18 `CooldownVisuals` `synchronized`](#18-cooldownvisuals--misleading-synchronized) — remove misleading lock; document main-thread assumption
+- [x] [§15 `WolfFormEffect` null check](#15-wolfformeffect--missing-plugin-null-check) — guard `apply()` against pre-`init()` call
+- [x] [§16 Scoreboard team duplication](#16-wolfformeffect--morphformeffect--scoreboard-team-code-duplication) — extract shared `ScoreboardTeamUtil`
+- [x] [§17 `CooldownVisuals` reflection](#17-cooldownvisuals--unnecessary-reflection-for-paper-1214) — replace with direct call; remove fallback machinery
+- [x] [§18 `CooldownVisuals` `synchronized`](#18-cooldownvisuals--misleading-synchronized) — remove misleading lock; document main-thread assumption
 
 **Phase 7 — Minor Cleanup**
-- [ ] [§19 `DamageTakenListener` array hack](#19-damagetakenlistener--array-hack-mutable-box) — replace `Set[]` box with `AtomicReference`
+- [x] [§19 `DamageTakenListener` array hack](#19-damagetakenlistener--array-hack-mutable-box) — replace `Set[]` box with `AtomicReference`
 
 **Phase 8 — UI Screens**
 - [x] [§20 Enchantment Catalog](#20-enchantment-catalog--already-present) — technical browse screen via `VibeCraftUiBridge.openEnchantCatalog()`; present
-- [ ] [§21 Product Guide](#21-product-guide--player-facing-capability-overview) — player-facing capability overview; plain language, no YAML keys or tick values
-- [ ] [§22 AI Manual](#22-ai-manual--in-game-technical-reference) — in-game technical reference with file, class, and method pointers for AI consultation
-- [ ] [§23 Mod recommendation on join](#23-mod-recommendation-on-join) — detect missing VibeCraftMod on connect; send clickable acquisition message
+- [x] [§21 Product Guide](#21-product-guide--player-facing-capability-overview) — player-facing capability overview; plain language, no YAML keys or tick values
+- [x] [§22 AI Manual](#22-ai-manual--in-game-technical-reference) — in-game technical reference with file, class, and method pointers for AI consultation
+- [x] [§23 Mod recommendation on join](#23-mod-recommendation-on-join) — detect missing VibeCraftMod on connect; send clickable acquisition message
 
 ---
 
