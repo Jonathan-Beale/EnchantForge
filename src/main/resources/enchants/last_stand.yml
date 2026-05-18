@@ -1,4 +1,5 @@
 displayName: "Last Stand"
+category: survival
 maxLevel: 3
 applicableTo:
   - ARMOR
@@ -26,3 +27,4 @@ cooldown: 2400
 stackBehavior: highest
 description: "Regeneration {level} for {duration} while low ({cooldown} cooldown)"
 displayAmountPerLevel: 1.0
+

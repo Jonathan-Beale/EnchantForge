@@ -1,6 +1,7 @@
 # Bulwark — passive armor bonus while worn; stacks across pieces
 
 displayName: "Bulwark"
+category: defensive
 maxLevel: 3
 applicableTo:
   - ARMOR
@@ -29,3 +30,4 @@ cooldown: 400
 stackBehavior: SUM
 displayAmountPerLevel: 2.0
 description: "+{amount} Armor while worn (paused on hit, {cooldown} cooldown)"
+

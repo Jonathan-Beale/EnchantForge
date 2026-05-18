@@ -1,6 +1,7 @@
 # Steadfast — absorption hearts that drain with damage and refill after staying out of combat
 
 displayName: "Steadfast"
+category: survival
 maxLevel: 3
 applicableTo:
   - ARMOR
@@ -26,3 +27,4 @@ outOfCombatRefreshTicks: 200
 stackBehavior: HIGHEST
 displayAmountPerLevel: 2.0
 description: "+{amount} Absorption hearts while worn (refreshes {refresh} after last hit)"
+

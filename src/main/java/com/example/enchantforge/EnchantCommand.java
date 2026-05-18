@@ -51,6 +51,15 @@ public class EnchantCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        if (args[0].equalsIgnoreCase("guide")) {
+            if (!(sender instanceof Player player)) {
+                sender.sendMessage("Only players can use this command.");
+                return true;
+            }
+            plugin.getUiBridge().openProductGuide(player, registry());
+            return true;
+        }
+
         if (!(sender instanceof Player player)) {
             sender.sendMessage("Only players can use this command.");
             return true;
@@ -120,6 +129,7 @@ public class EnchantCommand implements CommandExecutor, TabCompleter {
             List<String> options = new ArrayList<>();
             options.add("reload");
             options.add("catalog");
+            options.add("guide");
             registry().getAll().stream()
                     .map(e -> e.getKey().getKey())
                     .filter(k -> k.startsWith(partial))

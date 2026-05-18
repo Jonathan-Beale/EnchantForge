@@ -1,6 +1,7 @@
 # Vampiric — heals the wielder for a portion of damage dealt
 
 displayName: "Vampiric"
+category: offensive
 maxLevel: 3
 applicableTo:
   - _SWORD
@@ -31,3 +32,4 @@ duration:
 stackBehavior: HIGHEST
 displayAmountPerLevel: 15.0
 description: "Heals {amount}% of damage dealt"
+

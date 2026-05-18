@@ -1,4 +1,5 @@
 displayName: "F.R.I.D.A.Y. Interface"
+category: utility
 maxLevel: 1
 applicableTo:
   - LEATHER_HELMET
@@ -31,3 +32,4 @@ cooldown: 0
 stackBehavior: HIGHEST
 displayAmountPerLevel: 1.0
 description: "Activates F.R.I.D.A.Y. — suit energy HUD, fall protection, tactical audio alerts"
+

@@ -3,9 +3,11 @@ package com.example.enchantforge.effect;
 import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.ConfigurationSection;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 
 public final class EnchantEffectTypeRegistry {
@@ -34,6 +36,10 @@ public final class EnchantEffectTypeRegistry {
             throw new IllegalArgumentException("Effect style and factory must be provided");
         }
         FACTORIES.put(style.toLowerCase(Locale.ROOT), factory);
+    }
+
+    public static Set<String> registeredIds() {
+        return Collections.unmodifiableSet(FACTORIES.keySet());
     }
 
     public static EnchantEffect fromYaml(NamespacedKey key, ConfigurationSection section) {

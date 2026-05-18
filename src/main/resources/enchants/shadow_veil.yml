@@ -1,6 +1,7 @@
 # Shadow Veil — right-click to turn invisible briefly
 
 displayName: "Shadow Veil"
+category: utility
 maxLevel: 1
 applicableTo:
   - _SWORD
@@ -29,3 +30,4 @@ cooldown: 600   # 30 seconds
 stackBehavior: HIGHEST
 displayAmountPerLevel: 10.0
 description: "Vanish for {amount}s on right-click ({cooldown} cooldown)"
+

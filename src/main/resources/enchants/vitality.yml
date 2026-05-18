@@ -1,6 +1,7 @@
 # Vitality — passive health regeneration while worn; interrupted for 5 s on hit
 
 displayName: "Vitality"
+category: defensive
 maxLevel: 3
 applicableTo:
   - ARMOR
@@ -29,3 +30,4 @@ cooldown: 400  # 20 seconds (400 ticks)
 stackBehavior: HIGHEST
 displayAmountPerLevel: 1.0
 description: "Regen {amount} while worn (paused on hit, {cooldown} cooldown)"
+

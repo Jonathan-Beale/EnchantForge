@@ -1,4 +1,5 @@
 displayName: "Eye Laser"
+category: offensive
 maxLevel: 3
 applicableTo:
   - LEATHER_HELMET
@@ -33,3 +34,4 @@ cooldown: 20
 stackBehavior: HIGHEST
 displayAmountPerLevel: 4.0
 description: "Fire a laser beam dealing {amount} damage (×level, range +5/level)"
+

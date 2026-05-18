@@ -1,4 +1,5 @@
 displayName: "Repulsor"
+category: offensive
 maxLevel: 3
 # Gauntlet slot = off-hand. Apply to any ingot/rod the player will hold in their left hand.
 applicableTo:
@@ -33,3 +34,4 @@ cooldown: 5
 stackBehavior: HIGHEST
 displayAmountPerLevel: 6.0
 description: "Repulsor beam — hold in off-hand as gauntlet, draws from shared suit energy"
+

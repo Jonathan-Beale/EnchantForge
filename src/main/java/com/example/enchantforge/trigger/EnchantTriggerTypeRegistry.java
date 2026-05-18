@@ -62,6 +62,10 @@ public final class EnchantTriggerTypeRegistry {
         return Collections.unmodifiableList(ARMOR_SPECS);
     }
 
+    public static java.util.Set<String> registeredIds() {
+        return Collections.unmodifiableSet(FACTORIES.keySet());
+    }
+
     // ---- YAML factory ----
 
     public static EnchantTrigger fromYaml(ConfigurationSection section) {

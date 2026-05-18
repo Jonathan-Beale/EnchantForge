@@ -13,5 +13,10 @@ resource-pack:
   url: ""
   required: false
 
+# VibeCraftMod download link sent to players who join without the mod installed.
+# Leave blank to disable the recommendation message.
+vibecraft-mod:
+  url: ""
+
 debug:
   cooldownVisuals: false

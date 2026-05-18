@@ -16,8 +16,10 @@ dependencies {
 
     // Add Mockito for mocking
     testImplementation("org.mockito:mockito-core:5.5.0")
+    testImplementation("org.mockito:mockito-junit-jupiter:5.5.0")
 
     // Ensure test runtime includes JUnit platform
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.0")
 }
 java { toolchain.languageVersion = JavaLanguageVersion.of(21) }
+tasks.test { useJUnitPlatform() }

@@ -1,4 +1,5 @@
 displayName: "Iron Skin"
+category: defensive
 maxLevel: 3
 applicableTo:
   - ARMOR
@@ -24,3 +25,4 @@ duration:
 stackBehavior: sum
 description: "+{amount} Max Health"
 displayAmountPerLevel: 2.0
+

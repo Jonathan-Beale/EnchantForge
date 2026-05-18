@@ -1,6 +1,7 @@
 # Feral Form — right-click to become a wolf temporarily
 
 displayName: "Feral Form"
+category: transform
 maxLevel: 1
 applicableTo:
   - _SWORD
@@ -43,3 +44,4 @@ cooldown: 1200  # 60 seconds
 stackBehavior: HIGHEST
 description: "Transform into a wolf for {amount}s ({cooldown} cooldown)"
 displayAmountPerLevel: 30.0
+

@@ -1,6 +1,7 @@
 # Soulfeast — restores hunger when you kill an entity
 
 displayName: "Soulfeast"
+category: offensive
 maxLevel: 3
 applicableTo:
   - _SWORD
@@ -31,3 +32,4 @@ duration:
 stackBehavior: HIGHEST
 displayAmountPerLevel: 2.0
 description: "Restores {amount} hunger on kill"
+

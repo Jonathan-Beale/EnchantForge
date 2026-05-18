@@ -35,13 +35,15 @@ public class CustomEnchant {
     private final double displayAmountPerLevel;
     private final boolean debug;
     private final CatalogMetadata catalogMetadata;
+    private final String category;
 
     private CustomEnchant(NamespacedKey key, String displayName, int maxLevel,
                           EnchantTrigger trigger, EnchantEffect effect, EndCondition endCondition,
                           int cooldownTicks, int outOfCombatRefreshTicks, double outOfCombatRegenPerTick,
                           StackBehavior stackBehavior,
                           List<String> applicableTo, String descriptionTemplate,
-                          double displayAmountPerLevel, boolean debug, CatalogMetadata catalogMetadata) {
+                          double displayAmountPerLevel, boolean debug, CatalogMetadata catalogMetadata,
+                          String category) {
         this.key = key;
         this.displayName = displayName;
         this.maxLevel = maxLevel;
@@ -57,6 +59,7 @@ public class CustomEnchant {
         this.displayAmountPerLevel = displayAmountPerLevel;
         this.debug = debug;
         this.catalogMetadata = catalogMetadata;
+        this.category = category;
     }
 
     public static CustomEnchant fromYaml(NamespacedKey key, ConfigurationSection section) {
@@ -80,10 +83,11 @@ public class CustomEnchant {
         List<String> applicableTo = section.getStringList("applicableTo");
         boolean debug = section.getBoolean("debug", false);
         CatalogMetadata catalogMetadata = CatalogMetadata.fromYaml(section.getConfigurationSection("catalog"));
+        String category = section.getString("category", null);
 
         return new CustomEnchant(key, displayName, maxLevel, trigger, effect, endCondition,
                 cooldownTicks, outOfCombatRefreshTicks, outOfCombatRegenPerTick, stackBehavior,
-            applicableTo, descriptionTemplate, displayAmountPerLevel, debug, catalogMetadata);
+            applicableTo, descriptionTemplate, displayAmountPerLevel, debug, catalogMetadata, category);
     }
 
     // -------------------------------------------------------------------------
@@ -104,6 +108,7 @@ public class CustomEnchant {
     public List<String> getApplicableTo() { return applicableTo; }
     public String getDescription() { return descriptionTemplate; }
     public CatalogMetadata getCatalogMetadata() { return catalogMetadata; }
+    public String getCategory() { return category; }
         public String getDurationLabel() { return endCondition.getDisplayLabel(); }
         public String getCooldownLabel() { return cooldownTicks <= 0 ? "none" : formatTicksAsSeconds(cooldownTicks); }
 

@@ -2,6 +2,7 @@
 # Increase cooldown (ticks) or duration ticks to tune; no Java changes needed.
 
 displayName: "Berserker"
+category: offensive
 maxLevel: 3
 applicableTo:
   - ARMOR
@@ -30,3 +31,4 @@ cooldown: 1200  # 60 seconds between triggers
 stackBehavior: HIGHEST
 displayAmountPerLevel: 5.0
 description: "Strength {duration} on hit (cooldown: {cooldown})"
+
