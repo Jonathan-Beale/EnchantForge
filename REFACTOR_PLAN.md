@@ -45,6 +45,7 @@ Four classes/utilities to implement, followed by updates to their consumers and 
 - [x] [§20 Enchantment Catalog](#20-enchantment-catalog--already-present) — technical browse screen via `VibeCraftUiBridge.openEnchantCatalog()`; present
 - [ ] [§21 Product Guide](#21-product-guide--player-facing-capability-overview) — player-facing capability overview; plain language, no YAML keys or tick values
 - [ ] [§22 AI Manual](#22-ai-manual--in-game-technical-reference) — in-game technical reference with file, class, and method pointers for AI consultation
+- [ ] [§23 Mod recommendation on join](#23-mod-recommendation-on-join) — detect missing VibeCraftMod on connect; send clickable acquisition message
 
 ---
 
@@ -897,3 +898,75 @@ opened programmatically by the AI via VibeCraft, not by players navigating menus
 - `EnchantTriggerTypeRegistry.java` — add `registeredIds()` and `getSpec(String)` accessors
 - `EnchantEffectTypeRegistry.java` — add `registeredIds()` accessor
 - No YAML changes needed
+
+---
+
+## 23. Mod Recommendation on Join
+
+**Files:** `PlayerSessionListener.java`, `config.yml`
+
+**Purpose:** When a player connects without VibeCraftMod installed, send them a chat message
+explaining what the mod does and providing a clickable download link. Players who already have
+the mod see nothing.
+
+**Detection**
+
+VibeCraftMod registers the plugin channel `vibecraft:events` via Fabric's `ClientPlayNetworking`
+during client connection. Paper exposes registered client channels via
+`player.getListeningPluginChannels()`. However, channel registration arrives slightly after
+`PlayerJoinEvent` fires — a 40-tick (2 second) delayed check is reliable:
+
+```java
+plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+    if (!player.isOnline()) return;
+    if (player.getListeningPluginChannels().contains("vibecraft:events")) return;
+    sendModRecommendation(player);
+}, 40L);
+```
+
+**Message format**
+
+Use Paper's Adventure API (`net.kyori.adventure`) for a clickable component:
+
+```java
+private void sendModRecommendation(Player player) {
+    String url = plugin.getConfig().getString("vibecraft-mod.url", "");
+    if (url == null || url.isBlank()) return; // disabled if no URL configured
+
+    Component msg = Component.text()
+        .append(Component.text("[EnchantForge] ").color(NamedTextColor.GOLD))
+        .append(Component.text("This server uses ")
+            .color(NamedTextColor.YELLOW))
+        .append(Component.text("VibeCraftMod")
+            .color(NamedTextColor.AQUA)
+            .decorate(TextDecoration.BOLD))
+        .append(Component.text(" for an enhanced HUD and enchantment UI. ")
+            .color(NamedTextColor.YELLOW))
+        .append(Component.text("[Get it here]")
+            .color(NamedTextColor.GREEN)
+            .clickEvent(ClickEvent.openUrl(url))
+            .hoverEvent(HoverEvent.showText(
+                Component.text("Click to open download page").color(NamedTextColor.GRAY))))
+        .build();
+
+    player.sendMessage(msg);
+}
+```
+
+If `vibecraft-mod.url` is blank or absent, the method returns immediately — the feature is
+disabled until configured.
+
+**New config.yml section**
+
+```yaml
+vibecraft-mod:
+  url: ""   # download URL shown to players without the mod; leave blank to disable
+```
+
+Follows the same pattern as the existing `resource-pack:` block.
+
+**Scope:**
+- `PlayerSessionListener.java` — add `Plugin plugin` constructor parameter (for scheduler);
+  add 40-tick delayed check in `onPlayerJoin`; add `sendModRecommendation(Player)` helper
+- `config.yml` (resources) — add `vibecraft-mod.url: ""` section
+- `EnchantForge.java` — pass `this` to `PlayerSessionListener` constructor
