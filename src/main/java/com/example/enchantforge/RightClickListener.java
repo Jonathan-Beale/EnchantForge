@@ -15,7 +15,6 @@ import org.bukkit.plugin.Plugin;
 
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -58,33 +57,23 @@ public class RightClickListener implements Listener {
         plugin.getServer().getScheduler().runTask(plugin, () -> firedThisTick.remove(player.getUniqueId()));
         ItemStack mainHand = player.getInventory().getItemInMainHand();
 
-        Map<NamespacedKey, List<Integer>> triggered = new LinkedHashMap<>();
+        Map<NamespacedKey, List<Integer>> triggered = StackingDispatcher.newMap();
 
         // Check main hand
         if (mainHand.getType() != Material.AIR) {
-            registry.getEnchants(mainHand).forEach((enchant, level) -> {
-                if (!"on_right_click".equals(enchant.getTrigger().id())) return;
-                if (cooldowns.isOnCooldown(player, enchant, mainHand)) return;
-                triggered.computeIfAbsent(enchant.getKey(), k -> new ArrayList<>()).add(level);
-            });
+            StackingDispatcher.collectFromItem(triggered, registry.getEnchants(mainHand),
+                    "on_right_click", player, cooldowns, mainHand);
         }
 
         // Check equipped armor slots via index
-        for (PlayerEnchantIndex.SlottedEnchant se : enchantIndex.getByTrigger(player.getUniqueId(), "on_right_click")) {
-            ItemStack armorItem = player.getInventory().getItem(se.slot());
-            if (armorItem == null || armorItem.getType().isAir()) continue;
-            if (cooldowns.isOnCooldown(player, se.enchant(), armorItem)) continue;
-            triggered.computeIfAbsent(se.enchant().getKey(), k -> new ArrayList<>()).add(se.level());
-        }
+        StackingDispatcher.collectFromArmorSlots(triggered,
+                enchantIndex.getByTrigger(player.getUniqueId(), "on_right_click"), player, cooldowns);
 
         // Check off-hand (gauntlet slot)
         ItemStack offHand = player.getInventory().getItemInOffHand();
         if (offHand.getType() != Material.AIR) {
-            registry.getEnchants(offHand).forEach((enchant, level) -> {
-                if (!"on_right_click".equals(enchant.getTrigger().id())) return;
-                if (cooldowns.isOnCooldown(player, enchant, offHand)) return;
-                triggered.computeIfAbsent(enchant.getKey(), k -> new ArrayList<>()).add(level);
-            });
+            StackingDispatcher.collectFromItem(triggered, registry.getEnchants(offHand),
+                    "on_right_click", player, cooldowns, offHand);
         }
 
         if (triggered.isEmpty()) {

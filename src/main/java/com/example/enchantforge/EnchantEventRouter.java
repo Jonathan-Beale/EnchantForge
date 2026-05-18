@@ -14,7 +14,6 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -86,31 +85,25 @@ public class EnchantEventRouter implements Listener {
         ItemStack weapon = spec.weaponExtractor().apply(event);
         if (weapon == null || weapon.getType() == Material.AIR) return;
 
-        Map<NamespacedKey, List<Integer>> triggered = new LinkedHashMap<>();
-        registry.getEnchants(weapon).forEach((enchant, level) -> {
-            if (!spec.triggerId().equals(enchant.getTrigger().id())) return;
-            if (cooldowns.isOnCooldown(player, enchant, weapon)) return;
-            triggered.computeIfAbsent(enchant.getKey(), k -> new ArrayList<>()).add(level);
-        });
+        Map<NamespacedKey, List<Integer>> triggered = StackingDispatcher.newMap();
+        StackingDispatcher.collectFromItem(triggered, registry.getEnchants(weapon),
+                spec.triggerId(), player, cooldowns, weapon);
         if (triggered.isEmpty()) return;
 
         EnchantEffectContext ctx = spec.contextBuilder() != null
-                ? spec.contextBuilder().apply(event) : null;
-        triggered.forEach((key, levels) -> {
-            CustomEnchant enchant = registry.get(key);
-            if (enchant == null) return;
-            int effectiveLevel = enchant.getStackBehavior().compute(levels);
-            if (ctx != null) enchant.apply(player, effectiveLevel, ctx);
-            else enchant.apply(player, effectiveLevel);
+                ? spec.contextBuilder().apply(event)
+                : EnchantEffectContext.NONE;
+
+        StackingDispatcher.dispatch(triggered, registry, (enchant, effectiveLevel) -> {
+            enchant.apply(player, effectiveLevel, ctx);
             String msg = spec.triggerId() + " triggered lv" + effectiveLevel;
-            if (ctx != null && ctx.hasDealtDamage())
+            if (ctx.hasDealtDamage())
                 msg += " (+" + String.format("%.1f", ctx.dealtDamage()) + " dmg)";
             EnchantDebug.log(enchant, player, msg);
-            if (enchant.hasCooldown()) {
-                cooldowns.setCooldown(player, enchant, weapon);
-                CooldownVisuals.applyMainHandCooldown(player, enchant.getCooldownTicks());
-                EnchantDebug.log(enchant, player, "cooldown started (" + (enchant.getCooldownTicks() / 20) + "s)");
-            }
+        }, enchant -> {
+            cooldowns.setCooldown(player, enchant, weapon);
+            CooldownVisuals.applyMainHandCooldown(player, enchant.getCooldownTicks());
+            EnchantDebug.log(enchant, player, "cooldown started (" + (enchant.getCooldownTicks() / 20) + "s)");
         });
     }
 
@@ -123,26 +116,20 @@ public class EnchantEventRouter implements Listener {
                 enchantIndex.getByTrigger(player.getUniqueId(), spec.triggerId());
         if (equipped.isEmpty()) return;
 
-        Map<NamespacedKey, List<Integer>> triggered = new LinkedHashMap<>();
-        for (PlayerEnchantIndex.SlottedEnchant se : equipped) {
-            if (cooldowns.isOnCooldown(player, se.enchant())) continue;
-            triggered.computeIfAbsent(se.enchant().getKey(), k -> new ArrayList<>()).add(se.level());
-        }
+        Map<NamespacedKey, List<Integer>> triggered = StackingDispatcher.newMap();
+        StackingDispatcher.collectFromIndex(triggered, equipped, player, cooldowns);
         if (triggered.isEmpty()) return;
 
         EnchantEffectContext ctx = spec.contextBuilder() != null
-                ? spec.contextBuilder().apply(event) : null;
-        triggered.forEach((key, levels) -> {
-            CustomEnchant enchant = registry.get(key);
-            if (enchant == null) return;
-            int effectiveLevel = enchant.getStackBehavior().compute(levels);
-            if (ctx != null) enchant.apply(player, effectiveLevel, ctx);
-            else enchant.apply(player, effectiveLevel);
+                ? spec.contextBuilder().apply(event)
+                : EnchantEffectContext.NONE;
+
+        StackingDispatcher.dispatch(triggered, registry, (enchant, effectiveLevel) -> {
+            enchant.apply(player, effectiveLevel, ctx);
             EnchantDebug.log(enchant, player, spec.triggerId() + " triggered lv" + effectiveLevel);
-            if (enchant.hasCooldown()) {
-                cooldowns.setCooldown(player, enchant);
-                EnchantDebug.log(enchant, player, "cooldown started (" + (enchant.getCooldownTicks() / 20) + "s)");
-            }
+        }, enchant -> {
+            cooldowns.setCooldown(player, enchant);
+            EnchantDebug.log(enchant, player, "cooldown started (" + (enchant.getCooldownTicks() / 20) + "s)");
         });
     }
 }

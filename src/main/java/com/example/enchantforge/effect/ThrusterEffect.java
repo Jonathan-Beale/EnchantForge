@@ -10,6 +10,10 @@ import org.bukkit.util.Vector;
 
 public class ThrusterEffect implements EnchantEffect {
 
+    private static PlayerResourcePool energy;
+
+    public static void init(PlayerResourcePool pool) { energy = pool; }
+
     private final double power;
     private final double energyCost;
 
@@ -39,7 +43,7 @@ public class ThrusterEffect implements EnchantEffect {
             tier = 3; cost = energyCost * 1.9;   thrustPower = power * 1.85;
         }
 
-        if (!EnergyManager.tryConsume(player, cost)) {
+        if (energy == null || !energy.tryConsume(player, cost)) {
             player.playSound(player.getLocation(), Sound.BLOCK_DISPENSER_FAIL, 0.9f, 0.7f);
             return;
         }

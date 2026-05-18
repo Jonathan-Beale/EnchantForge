@@ -1,6 +1,6 @@
 package com.example.enchantforge;
 
-import com.example.enchantforge.effect.EnergyManager;
+import com.example.enchantforge.effect.PlayerResourcePool;
 import com.example.enchantforge.effect.ThrusterEffect;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextColor;
@@ -33,6 +33,7 @@ public class SuitListener implements Listener {
 
     private final Plugin plugin;
     private final PlayerEnchantIndex enchantIndex;
+    private final PlayerResourcePool energy;
 
     /** Players with the Friday AI helmet enchant currently equipped. */
     private final Set<UUID> activeSuit  = new HashSet<>();
@@ -55,11 +56,12 @@ public class SuitListener implements Listener {
 
     // -------------------------------------------------------------------------
 
-    public SuitListener(EnchantmentRegistry registry, Plugin plugin, PlayerEnchantIndex enchantIndex) {
-        this.plugin   = plugin;
+    public SuitListener(Plugin plugin, PlayerEnchantIndex enchantIndex, PlayerResourcePool energy) {
+        this.plugin       = plugin;
         this.enchantIndex = enchantIndex;
+        this.energy       = energy;
         instance = this;
-        EnergyManager.registerCallback(this::onEnergyChanged);
+        energy.onChanged(this::onEnergyChanged);
         // 5-tick poll: BossBar refresh + fall guard + Friday audio checks
         plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 1L, 5L);
     }
@@ -69,7 +71,7 @@ public class SuitListener implements Listener {
     public void activateSuit(Player player) {
         if (!activeSuit.add(player.getUniqueId())) return;
         BossBar bar = Bukkit.createBossBar("⚡  F.R.I.D.A.Y.", BarColor.BLUE, BarStyle.SEGMENTED_20);
-        bar.setProgress(EnergyManager.get(player) / EnergyManager.MAX);
+        bar.setProgress(energy.get(player) / energy.getMax());
         bar.addPlayer(player);
         bossBars.put(player.getUniqueId(), bar);
         friday(player, FridayLine.ACTIVATED);
@@ -112,7 +114,7 @@ public class SuitListener implements Listener {
     private void updateBossBar(Player player) {
         BossBar bar = bossBars.get(player.getUniqueId());
         if (bar == null) return;
-        double pct = EnergyManager.get(player) / EnergyManager.MAX;
+        double pct = energy.get(player) / energy.getMax();
         bar.setProgress(Math.max(0.0, Math.min(1.0, pct)));
         bar.setColor(pct > 0.6 ? BarColor.BLUE : pct > 0.3 ? BarColor.YELLOW : BarColor.RED);
     }
@@ -121,7 +123,7 @@ public class SuitListener implements Listener {
         if (player.isOnGround() || player.isFlying() || player.getFallDistance() < 14) return;
         long now = System.currentTimeMillis();
         if (now - lastFallGuard.getOrDefault(player.getUniqueId(), 0L) < 3000) return;
-        if (!EnergyManager.tryConsume(player, 18)) return;
+        if (!energy.tryConsume(player, 18)) return;
 
         lastFallGuard.put(player.getUniqueId(), now);
         Vector v = player.getVelocity();
@@ -136,7 +138,7 @@ public class SuitListener implements Listener {
     }
 
     private void checkFridayAudio(Player player) {
-        double pct = EnergyManager.get(player) / EnergyManager.MAX;
+        double pct = energy.get(player) / energy.getMax();
         boolean critical  = pct < 0.2;
         boolean wasCrit   = wasPowerCritical.getOrDefault(player.getUniqueId(), false);
         if (critical && !wasCrit)          friday(player, FridayLine.POWER_CRITICAL);

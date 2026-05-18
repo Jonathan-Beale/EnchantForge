@@ -1,8 +1,16 @@
 package com.example.enchantforge;
 
+import com.example.enchantforge.effect.HandLaserEffect;
 import com.example.enchantforge.effect.MorphFormEffect;
+import com.example.enchantforge.effect.PlayerResourcePool;
+import com.example.enchantforge.effect.ThrusterEffect;
 import com.example.enchantforge.effect.WolfFormEffect;
 import com.example.enchantforge.trigger.EnchantTriggerTypeRegistry;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.text.event.HoverEvent;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.NamespacedKey;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -22,6 +30,7 @@ public class EnchantForge extends JavaPlugin {
     private ResourcePackManager resourcePackManager;
     private VibeCraftUiBridge uiBridge;
     private EnchantForgeModInputListener modInputListener;
+    private PlayerResourcePool energy;
 
     @Override
     public void onEnable() {
@@ -38,6 +47,9 @@ public class EnchantForge extends JavaPlugin {
         tracker = new ActiveEffectTracker();
         combatTracker = new CombatTracker();
         enchantIndex = new PlayerEnchantIndex();
+        energy = new PlayerResourcePool(100.0, 0.4);
+        ThrusterEffect.init(energy);
+        HandLaserEffect.init(energy);
 
         getServer().getMessenger().registerOutgoingPluginChannel(this, "vibecraft:events");
         uiBridge = new VibeCraftUiBridge(this);
@@ -49,14 +61,35 @@ public class EnchantForge extends JavaPlugin {
 
         saveDefaultEnchants();
         loadEnchantments();
+        cooldowns.load(new File(getDataFolder(), "cooldowns.yml"));
 
         equipmentListener = new EquipmentEnchantListener(registry, cooldowns, tracker, combatTracker, enchantIndex);
         equipmentListener.startReapplyTicker(this);
         getServer().getPluginManager().registerEvents(equipmentListener, this);
         getServer().getPluginManager().registerEvents(
                 new DamageTakenListener(registry, cooldowns, tracker, combatTracker, this, enchantIndex), this);
-        getServer().getPluginManager().registerEvents(
-                new PlayerSessionListener(cooldowns, tracker, combatTracker, resourcePackManager, enchantIndex), this);
+
+        PlayerLifecycleRegistry lifecycle = new PlayerLifecycleRegistry();
+        lifecycle.onJoin(resourcePackManager::sendPackTo);
+        lifecycle.onJoin(p -> {
+            String modUrl = getConfig().getString("vibecraft-mod.url", "");
+            if (modUrl == null || modUrl.isBlank()) return;
+            getServer().getScheduler().runTaskLater(this, () -> {
+                if (!p.isOnline()) return;
+                if (p.getListeningPluginChannels().contains("vibecraft:events")) return;
+                sendModRecommendation(p, modUrl);
+            }, 40L);
+        });
+        lifecycle.onQuit(p -> {
+            java.util.UUID id = p.getUniqueId();
+            cooldowns.clearPlayer(id);
+            tracker.clearPlayer(id);
+            combatTracker.clearPlayer(id);
+            enchantIndex.clearPlayer(id);
+            energy.cleanup(id);
+        });
+        getServer().getPluginManager().registerEvents(lifecycle, this);
+
         getServer().getPluginManager().registerEvents(
             new EnchantCatalogListener(registry, uiBridge), this);
         EnchantEventRouter enchantRouter = new EnchantEventRouter(registry, cooldowns, enchantIndex);
@@ -65,7 +98,7 @@ public class EnchantForge extends JavaPlugin {
         getServer().getPluginManager().registerEvents(enchantRouter, this);
         getServer().getPluginManager().registerEvents(
                 new RightClickListener(registry, cooldowns, this, enchantIndex), this);
-        getServer().getPluginManager().registerEvents(new SuitListener(registry, this, enchantIndex), this);
+        getServer().getPluginManager().registerEvents(new SuitListener(this, enchantIndex, energy), this);
 
         EnchantCommand cmd = new EnchantCommand(this);
         getCommand("cenchant").setExecutor(cmd);
@@ -79,6 +112,7 @@ public class EnchantForge extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        cooldowns.save(new File(getDataFolder(), "cooldowns.yml"));
         getServer().getMessenger().unregisterOutgoingPluginChannel(this, "vibecraft:events");
         getServer().getMessenger().unregisterIncomingPluginChannel(this, "vibecraft:input");
         if (resourcePackManager != null) resourcePackManager.stopHttpServer();
@@ -86,6 +120,7 @@ public class EnchantForge extends JavaPlugin {
     }
 
     public void reload(CommandSender sender) {
+        cooldowns.save(new File(getDataFolder(), "cooldowns.yml"));
         reloadConfig();
         resourcePackManager.reloadSettings();
 
@@ -94,10 +129,12 @@ public class EnchantForge extends JavaPlugin {
             tracker.clearPlayer(player.getUniqueId());
             cooldowns.clearPlayer(player.getUniqueId());
             enchantIndex.clearPlayer(player.getUniqueId());
+            energy.cleanup(player.getUniqueId());
         }
 
         registry.clear();
         loadEnchantments();
+        cooldowns.load(new File(getDataFolder(), "cooldowns.yml"));
 
         for (Player player : getServer().getOnlinePlayers()) {
             equipmentListener.refreshPlayer(player);
@@ -147,8 +184,25 @@ public class EnchantForge extends JavaPlugin {
                 NamespacedKey key = new NamespacedKey(this, keyStr);
                 registry.register(CustomEnchant.fromYaml(key, yaml));
             } catch (Exception e) {
-                getLogger().warning("Failed to load " + file.getName() + ": " + e.getMessage());
+                getLogger().severe("Failed to load enchant from " + file.getName() + ": " + e.getMessage());
             }
         }
+    }
+
+    private void sendModRecommendation(Player player, String url) {
+        Component msg = Component.text()
+            .append(Component.text("[EnchantForge] ").color(NamedTextColor.GOLD))
+            .append(Component.text("This server uses ").color(NamedTextColor.YELLOW))
+            .append(Component.text("VibeCraftMod")
+                .color(NamedTextColor.AQUA)
+                .decorate(TextDecoration.BOLD))
+            .append(Component.text(" for an enhanced HUD and enchantment UI. ").color(NamedTextColor.YELLOW))
+            .append(Component.text("[Get it here]")
+                .color(NamedTextColor.GREEN)
+                .clickEvent(ClickEvent.openUrl(url))
+                .hoverEvent(HoverEvent.showText(
+                    Component.text("Click to open download page").color(NamedTextColor.GRAY))))
+            .build();
+        player.sendMessage(msg);
     }
 }
