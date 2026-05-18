@@ -24,6 +24,11 @@ public class ActiveEffectTracker {
         return map != null && map.containsKey(enchant.getKey());
     }
 
+    public boolean hasActive(UUID playerId) {
+        Map<NamespacedKey, Integer> map = active.get(playerId);
+        return map != null && !map.isEmpty();
+    }
+
     public Map<NamespacedKey, Integer> getActive(UUID playerId) {
         return active.getOrDefault(playerId, Collections.emptyMap());
     }

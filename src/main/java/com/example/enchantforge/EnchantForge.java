@@ -1,8 +1,8 @@
 package com.example.enchantforge;
 
-import com.example.enchantforge.effect.EnergyManager;
 import com.example.enchantforge.effect.MorphFormEffect;
 import com.example.enchantforge.effect.WolfFormEffect;
+import com.example.enchantforge.trigger.EnchantTriggerTypeRegistry;
 import org.bukkit.NamespacedKey;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -17,6 +17,7 @@ public class EnchantForge extends JavaPlugin {
     private CooldownManager cooldowns;
     private ActiveEffectTracker tracker;
     private CombatTracker combatTracker;
+    private PlayerEnchantIndex enchantIndex;
     private EquipmentEnchantListener equipmentListener;
     private ResourcePackManager resourcePackManager;
     private VibeCraftUiBridge uiBridge;
@@ -31,12 +32,12 @@ public class EnchantForge extends JavaPlugin {
         VisibilityUtil.init(this);
         WolfFormEffect.init(this);
         MorphFormEffect.init(this);
-        EnergyManager.init(this);
 
         registry = new EnchantmentRegistry();
         cooldowns = new CooldownManager();
         tracker = new ActiveEffectTracker();
         combatTracker = new CombatTracker();
+        enchantIndex = new PlayerEnchantIndex();
 
         getServer().getMessenger().registerOutgoingPluginChannel(this, "vibecraft:events");
         uiBridge = new VibeCraftUiBridge(this);
@@ -49,22 +50,22 @@ public class EnchantForge extends JavaPlugin {
         saveDefaultEnchants();
         loadEnchantments();
 
-        equipmentListener = new EquipmentEnchantListener(registry, cooldowns, tracker, combatTracker);
+        equipmentListener = new EquipmentEnchantListener(registry, cooldowns, tracker, combatTracker, enchantIndex);
         equipmentListener.startReapplyTicker(this);
         getServer().getPluginManager().registerEvents(equipmentListener, this);
         getServer().getPluginManager().registerEvents(
-                new DamageTakenListener(registry, cooldowns, tracker, combatTracker, this), this);
+                new DamageTakenListener(registry, cooldowns, tracker, combatTracker, this, enchantIndex), this);
         getServer().getPluginManager().registerEvents(
-                new PlayerSessionListener(cooldowns, tracker, combatTracker, resourcePackManager), this);
+                new PlayerSessionListener(cooldowns, tracker, combatTracker, resourcePackManager, enchantIndex), this);
         getServer().getPluginManager().registerEvents(
             new EnchantCatalogListener(registry, uiBridge), this);
+        EnchantEventRouter enchantRouter = new EnchantEventRouter(registry, cooldowns, enchantIndex);
+        EnchantTriggerTypeRegistry.weaponSpecs().forEach(enchantRouter::register);
+        EnchantTriggerTypeRegistry.armorSpecs().forEach(enchantRouter::register);
+        getServer().getPluginManager().registerEvents(enchantRouter, this);
         getServer().getPluginManager().registerEvents(
-                new EntityKillListener(registry, cooldowns), this);
-        getServer().getPluginManager().registerEvents(
-                new DamageDealtListener(registry, cooldowns), this);
-        getServer().getPluginManager().registerEvents(
-                new RightClickListener(registry, cooldowns, this), this);
-        getServer().getPluginManager().registerEvents(new SuitListener(registry, this), this);
+                new RightClickListener(registry, cooldowns, this, enchantIndex), this);
+        getServer().getPluginManager().registerEvents(new SuitListener(registry, this, enchantIndex), this);
 
         EnchantCommand cmd = new EnchantCommand(this);
         getCommand("cenchant").setExecutor(cmd);
@@ -92,6 +93,7 @@ public class EnchantForge extends JavaPlugin {
             for (CustomEnchant enchant : registry.getAll()) enchant.remove(player);
             tracker.clearPlayer(player.getUniqueId());
             cooldowns.clearPlayer(player.getUniqueId());
+            enchantIndex.clearPlayer(player.getUniqueId());
         }
 
         registry.clear();
@@ -106,8 +108,9 @@ public class EnchantForge extends JavaPlugin {
                 + registry.getAll().size() + " enchantment(s).");
     }
 
-    public EnchantmentRegistry getRegistry() { return registry; }
+    public EnchantmentRegistry getRegistry()   { return registry; }
     public VibeCraftUiBridge getUiBridge()     { return uiBridge; }
+    public PlayerEnchantIndex getEnchantIndex() { return enchantIndex; }
 
     // -------------------------------------------------------------------------
 

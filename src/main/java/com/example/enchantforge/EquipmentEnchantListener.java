@@ -2,7 +2,6 @@ package com.example.enchantforge;
 
 import com.destroystokyo.paper.event.player.PlayerArmorChangeEvent;
 import com.example.enchantforge.condition.FullHealthOrDamagedCondition;
-import org.bukkit.attribute.Attribute;
 import org.bukkit.NamespacedKey;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
@@ -10,13 +9,15 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.plugin.Plugin;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class EquipmentEnchantListener implements Listener {
 
@@ -24,29 +25,31 @@ public class EquipmentEnchantListener implements Listener {
     private final CooldownManager cooldowns;
     private final ActiveEffectTracker tracker;
     private final CombatTracker combatTracker;
+    private final PlayerEnchantIndex enchantIndex;
 
     public EquipmentEnchantListener(EnchantmentRegistry registry, CooldownManager cooldowns,
-                                    ActiveEffectTracker tracker, CombatTracker combatTracker) {
+                                    ActiveEffectTracker tracker, CombatTracker combatTracker,
+                                    PlayerEnchantIndex enchantIndex) {
         this.registry = registry;
         this.cooldowns = cooldowns;
         this.tracker = tracker;
         this.combatTracker = combatTracker;
+        this.enchantIndex = enchantIndex;
     }
 
     @EventHandler
     public void onArmorChange(PlayerArmorChangeEvent event) {
         Player player = event.getPlayer();
         double savedAbsorption = player.getAbsorptionAmount();
+
         removeOnEquip(player);
 
-        ItemStack[] armor = player.getInventory().getArmorContents();
-        int idx = slotIndex(event.getSlotType());
-        if (idx >= 0) armor[idx] = event.getNewItem();
+        EquipmentSlot slot = PlayerEnchantIndex.fromSlotType(event.getSlotType());
+        enchantIndex.updateSlot(player, slot, event.getNewItem(), registry);
 
-        applyOnEquip(player, armor);
+        applyOnEquip(player);
 
         // Prevent the remove→reapply cycle from inflating absorption back to full.
-        // If the player had absorption before the armor change, cap back to that amount.
         if (savedAbsorption > 0 && player.getAbsorptionAmount() > savedAbsorption) {
             AttributeInstance maxAbsAttr = player.getAttribute(Attribute.MAX_ABSORPTION);
             double newMax = maxAbsAttr != null ? maxAbsAttr.getValue() : 0.0;
@@ -56,21 +59,23 @@ public class EquipmentEnchantListener implements Listener {
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
-        applyOnEquip(event.getPlayer(), event.getPlayer().getInventory().getArmorContents());
+        Player player = event.getPlayer();
+        enchantIndex.rebuild(player, registry);
+        applyOnEquip(player);
     }
 
     public void refreshPlayer(Player player) {
         removeOnEquip(player);
-        applyOnEquip(player, player.getInventory().getArmorContents());
+        enchantIndex.rebuild(player, registry);
+        applyOnEquip(player);
     }
 
     /** Checks every second whether any online player's interrupted passive cooldown has expired. */
     public void startReapplyTicker(Plugin plugin) {
         plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
             for (Player player : plugin.getServer().getOnlinePlayers()) {
-                // Only re-apply the specific interrupted enchants — NOT applyOnEquip, which would
-                // also call addPotionEffect for NeverCondition enchants (Steadfast) and reset
-                // their absorption HP, causing near-invulnerability.
+                // Only re-apply interrupted enchants — not a full applyOnEquip, which would reset
+                // NeverCondition absorption HP causing near-invulnerability.
                 reapplyInterruptedPassives(player);
                 refreshOutOfCombat(player);
             }
@@ -78,18 +83,19 @@ public class EquipmentEnchantListener implements Listener {
     }
 
     private void reapplyInterruptedPassives(Player player) {
+        List<PlayerEnchantIndex.SlottedEnchant> onEquip = enchantIndex.getByTrigger(player.getUniqueId(), "on_equip");
+        if (onEquip.isEmpty()) return;
         Map<NamespacedKey, List<Integer>> needed = new LinkedHashMap<>();
-        for (ItemStack piece : player.getInventory().getArmorContents()) {
-            registry.getEnchants(piece).forEach((enchant, level) -> {
-                if ("on_equip".equals(enchant.getTrigger().id())
-                        && enchant.getEndCondition().requiresTracking()
-                        && !tracker.isTracked(player, enchant)
-                        && !cooldowns.isOnCooldown(player, enchant)
-                        && !(enchant.getEndCondition() instanceof FullHealthOrDamagedCondition
-                                && player.getHealth() >= player.getAttribute(Attribute.MAX_HEALTH).getValue() - 0.001)) {
-                    needed.computeIfAbsent(enchant.getKey(), k -> new ArrayList<>()).add(level);
-                }
-            });
+        double maxHp = safeMaxHealth(player);
+        for (PlayerEnchantIndex.SlottedEnchant se : onEquip) {
+            CustomEnchant enchant = se.enchant();
+            if (enchant.getEndCondition().requiresTracking()
+                    && !tracker.isTracked(player, enchant)
+                    && !cooldowns.isOnCooldown(player, enchant)
+                    && !(enchant.getEndCondition() instanceof FullHealthOrDamagedCondition
+                            && player.getHealth() >= maxHp - 0.001)) {
+                needed.computeIfAbsent(enchant.getKey(), k -> new ArrayList<>()).add(se.level());
+            }
         }
         needed.forEach((key, levels) -> {
             CustomEnchant enchant = registry.get(key);
@@ -105,16 +111,16 @@ public class EquipmentEnchantListener implements Listener {
     // -------------------------------------------------------------------------
 
     private void refreshOutOfCombat(Player player) {
+        List<PlayerEnchantIndex.SlottedEnchant> onEquip = enchantIndex.getByTrigger(player.getUniqueId(), "on_equip");
+        if (onEquip.isEmpty()) return;
         Map<NamespacedKey, List<Integer>> candidates = new LinkedHashMap<>();
-        for (ItemStack piece : player.getInventory().getArmorContents()) {
-            registry.getEnchants(piece).forEach((enchant, level) -> {
-                if ("on_equip".equals(enchant.getTrigger().id())
-                        && enchant.hasOutOfCombatRefresh()
-                        && combatTracker.millisSinceLastHit(player.getUniqueId())
-                            >= enchant.getOutOfCombatRefreshTicks() * 50L) {
-                    candidates.computeIfAbsent(enchant.getKey(), k -> new ArrayList<>()).add(level);
-                }
-            });
+        for (PlayerEnchantIndex.SlottedEnchant se : onEquip) {
+            CustomEnchant enchant = se.enchant();
+            if (enchant.hasOutOfCombatRefresh()
+                    && combatTracker.millisSinceLastHit(player.getUniqueId())
+                        >= enchant.getOutOfCombatRefreshTicks() * 50L) {
+                candidates.computeIfAbsent(enchant.getKey(), k -> new ArrayList<>()).add(se.level());
+            }
         }
         if (candidates.isEmpty()) return;
 
@@ -125,7 +131,6 @@ public class EquipmentEnchantListener implements Listener {
             CustomEnchant enchant = registry.get(key);
             if (enchant == null) return;
             int effectiveLevel = enchant.getStackBehavior().compute(levels);
-            // Absorption gives (amplifier+1)*4 HP = effectiveLevel*4 HP
             double expected = Math.min(effectiveLevel * 4.0, maxAbs);
             double current = player.getAbsorptionAmount();
             if (current >= expected - 0.01) return;
@@ -137,14 +142,10 @@ public class EquipmentEnchantListener implements Listener {
         });
     }
 
-    private void applyOnEquip(Player player, ItemStack[] armor) {
+    private void applyOnEquip(Player player) {
         Map<NamespacedKey, List<Integer>> collected = new LinkedHashMap<>();
-        for (ItemStack piece : armor) {
-            registry.getEnchants(piece).forEach((enchant, level) -> {
-                if ("on_equip".equals(enchant.getTrigger().id())) {
-                    collected.computeIfAbsent(enchant.getKey(), k -> new ArrayList<>()).add(level);
-                }
-            });
+        for (PlayerEnchantIndex.SlottedEnchant se : enchantIndex.getByTrigger(player.getUniqueId(), "on_equip")) {
+            collected.computeIfAbsent(se.enchant().getKey(), k -> new ArrayList<>()).add(se.level());
         }
         collected.forEach((key, levels) -> {
             CustomEnchant enchant = registry.get(key);
@@ -168,22 +169,19 @@ public class EquipmentEnchantListener implements Listener {
     }
 
     private void removeOnEquip(Player player) {
-        for (CustomEnchant enchant : registry.getAll()) {
-            if ("on_equip".equals(enchant.getTrigger().id())) {
-                if (tracker.isTracked(player, enchant))
-                    EnchantDebug.log(enchant, player, "on_equip removed (armor change)");
-                enchant.remove(player);
-                tracker.remove(player.getUniqueId(), enchant.getKey());
-            }
+        Set<NamespacedKey> seen = new HashSet<>();
+        for (PlayerEnchantIndex.SlottedEnchant se : enchantIndex.getByTrigger(player.getUniqueId(), "on_equip")) {
+            if (!seen.add(se.enchant().getKey())) continue;
+            CustomEnchant enchant = se.enchant();
+            if (tracker.isTracked(player, enchant))
+                EnchantDebug.log(enchant, player, "on_equip removed (armor change)");
+            enchant.remove(player);
+            tracker.remove(player.getUniqueId(), enchant.getKey());
         }
     }
 
-    private int slotIndex(PlayerArmorChangeEvent.SlotType slot) {
-        return switch (slot) {
-            case FEET  -> 0;
-            case LEGS  -> 1;
-            case CHEST -> 2;
-            case HEAD  -> 3;
-        };
+    private static double safeMaxHealth(Player player) {
+        AttributeInstance attr = player.getAttribute(Attribute.MAX_HEALTH);
+        return attr != null ? attr.getValue() : 20.0;
     }
 }

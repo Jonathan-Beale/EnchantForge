@@ -9,11 +9,13 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityTargetEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 
-import java.util.HashSet;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -24,6 +26,7 @@ public class RightClickListener implements Listener {
     private final EnchantmentRegistry registry;
     private final CooldownManager cooldowns;
     private final Plugin plugin;
+    private final PlayerEnchantIndex enchantIndex;
 
     /** Players currently under a timed full-invisibility effect from this listener. */
     private final Set<UUID> invisible = new HashSet<>();
@@ -31,10 +34,12 @@ public class RightClickListener implements Listener {
     /** Deduplicates right-click events — Bukkit fires once per hand, we only want one per click. */
     private final Set<UUID> firedThisTick = new HashSet<>();
 
-    public RightClickListener(EnchantmentRegistry registry, CooldownManager cooldowns, Plugin plugin) {
+    public RightClickListener(EnchantmentRegistry registry, CooldownManager cooldowns, Plugin plugin,
+                              PlayerEnchantIndex enchantIndex) {
         this.registry = registry;
         this.cooldowns = cooldowns;
         this.plugin = plugin;
+        this.enchantIndex = enchantIndex;
     }
 
     @EventHandler
@@ -53,44 +58,33 @@ public class RightClickListener implements Listener {
         plugin.getServer().getScheduler().runTask(plugin, () -> firedThisTick.remove(player.getUniqueId()));
         ItemStack mainHand = player.getInventory().getItemInMainHand();
 
-        Map<NamespacedKey, List<Integer>> triggered = TriggerDispatchService.newTriggeredMap();
+        Map<NamespacedKey, List<Integer>> triggered = new LinkedHashMap<>();
 
         // Check main hand
         if (mainHand.getType() != Material.AIR) {
-            TriggerDispatchService.collectTriggered(
-                    triggered,
-                    registry.getEnchants(mainHand),
-                    "on_right_click",
-                    player,
-                    cooldowns,
-                    mainHand
-            );
+            registry.getEnchants(mainHand).forEach((enchant, level) -> {
+                if (!"on_right_click".equals(enchant.getTrigger().id())) return;
+                if (cooldowns.isOnCooldown(player, enchant, mainHand)) return;
+                triggered.computeIfAbsent(enchant.getKey(), k -> new ArrayList<>()).add(level);
+            });
         }
 
-        // Check equipped armor slots
-        for (ItemStack armor : player.getInventory().getArmorContents()) {
-            if (armor == null || armor.getType() == Material.AIR) continue;
-            TriggerDispatchService.collectTriggered(
-                    triggered,
-                    registry.getEnchants(armor),
-                    "on_right_click",
-                    player,
-                    cooldowns,
-                    armor
-            );
+        // Check equipped armor slots via index
+        for (PlayerEnchantIndex.SlottedEnchant se : enchantIndex.getByTrigger(player.getUniqueId(), "on_right_click")) {
+            ItemStack armorItem = player.getInventory().getItem(se.slot());
+            if (armorItem == null || armorItem.getType().isAir()) continue;
+            if (cooldowns.isOnCooldown(player, se.enchant(), armorItem)) continue;
+            triggered.computeIfAbsent(se.enchant().getKey(), k -> new ArrayList<>()).add(se.level());
         }
 
         // Check off-hand (gauntlet slot)
         ItemStack offHand = player.getInventory().getItemInOffHand();
         if (offHand.getType() != Material.AIR) {
-            TriggerDispatchService.collectTriggered(
-                    triggered,
-                    registry.getEnchants(offHand),
-                    "on_right_click",
-                    player,
-                    cooldowns,
-                    offHand
-            );
+            registry.getEnchants(offHand).forEach((enchant, level) -> {
+                if (!"on_right_click".equals(enchant.getTrigger().id())) return;
+                if (cooldowns.isOnCooldown(player, enchant, offHand)) return;
+                triggered.computeIfAbsent(enchant.getKey(), k -> new ArrayList<>()).add(level);
+            });
         }
 
         if (triggered.isEmpty()) {
@@ -157,10 +151,9 @@ public class RightClickListener implements Listener {
         if (offHand != null && offHand.getType() != Material.AIR && registry.getLevel(offHand, enchant) > 0) {
             return new CooldownVisualSource(player.getInventory().getItemInOffHand(), false, "off");
         }
-        for (ItemStack armor : player.getInventory().getArmorContents()) {
-            if (armor == null || armor.getType() == Material.AIR) continue;
-            if (registry.getLevel(armor, enchant) > 0) {
-                return new CooldownVisualSource(armor, false, "armor");
+        for (PlayerEnchantIndex.SlottedEnchant se : enchantIndex.getByTrigger(player.getUniqueId(), "on_right_click")) {
+            if (se.enchant().getKey().equals(enchant.getKey())) {
+                return new CooldownVisualSource(player.getInventory().getItem(se.slot()), false, "armor");
             }
         }
         return null;
@@ -170,9 +163,10 @@ public class RightClickListener implements Listener {
         List<String> candidates = new ArrayList<>();
         collectRightClickCandidates(player, candidates, "main", registry.getEnchants(mainHand));
         collectRightClickCandidates(player, candidates, "off", registry.getEnchants(offHand));
-        for (ItemStack armor : player.getInventory().getArmorContents()) {
-            if (armor == null || armor.getType() == Material.AIR) continue;
-            collectRightClickCandidates(player, candidates, "armor", registry.getEnchants(armor));
+        for (PlayerEnchantIndex.SlottedEnchant se : enchantIndex.getByTrigger(player.getUniqueId(), "on_right_click")) {
+            boolean onCooldown = cooldowns.isOnCooldown(player, se.enchant());
+            candidates.add("candidate slot=armor enchant=" + se.enchant().getKey().getKey()
+                    + " level=" + se.level() + " onCooldown=" + onCooldown);
         }
         if (candidates.isEmpty()) {
             plugin.getLogger().info("[cooldown-visuals] no on_right_click candidates found for player=" + player.getName());

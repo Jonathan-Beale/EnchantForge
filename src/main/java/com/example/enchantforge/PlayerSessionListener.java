@@ -12,13 +12,16 @@ public class PlayerSessionListener implements Listener {
     private final ActiveEffectTracker tracker;
     private final CombatTracker combatTracker;
     private final ResourcePackManager resourcePackManager;
+    private final PlayerEnchantIndex enchantIndex;
 
     public PlayerSessionListener(CooldownManager cooldowns, ActiveEffectTracker tracker,
-                                 CombatTracker combatTracker, ResourcePackManager resourcePackManager) {
+                                 CombatTracker combatTracker, ResourcePackManager resourcePackManager,
+                                 PlayerEnchantIndex enchantIndex) {
         this.cooldowns = cooldowns;
         this.tracker = tracker;
         this.combatTracker = combatTracker;
         this.resourcePackManager = resourcePackManager;
+        this.enchantIndex = enchantIndex;
     }
 
     @EventHandler
@@ -32,6 +35,7 @@ public class PlayerSessionListener implements Listener {
         cooldowns.clearPlayer(id);
         tracker.clearPlayer(id);
         combatTracker.clearPlayer(id);
+        enchantIndex.clearPlayer(id);
         EnergyManager.cleanup(id);
     }
 }

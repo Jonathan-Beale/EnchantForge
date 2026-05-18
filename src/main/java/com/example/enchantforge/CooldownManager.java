@@ -19,7 +19,13 @@ public class CooldownManager {
         Map<NamespacedKey, Long> map = cooldowns.get(player.getUniqueId());
         if (map == null) return false;
         Long expiry = map.get(enchant.getKey());
-        return expiry != null && System.currentTimeMillis() < expiry;
+        if (expiry == null) return false;
+        if (System.currentTimeMillis() >= expiry) {
+            map.remove(enchant.getKey());
+            if (map.isEmpty()) cooldowns.remove(player.getUniqueId());
+            return false;
+        }
+        return true;
     }
 
     public long getRemainingSeconds(Player player, CustomEnchant enchant) {
@@ -51,8 +57,15 @@ public class CooldownManager {
         }
         Map<String, Long> map = itemCooldowns.get(player.getUniqueId());
         if (map == null) return false;
-        Long expiry = map.get(itemKey(enchant.getKey(), itemId));
-        return expiry != null && System.currentTimeMillis() < expiry;
+        String key = itemKey(enchant.getKey(), itemId);
+        Long expiry = map.get(key);
+        if (expiry == null) return false;
+        if (System.currentTimeMillis() >= expiry) {
+            map.remove(key);
+            if (map.isEmpty()) itemCooldowns.remove(player.getUniqueId());
+            return false;
+        }
+        return true;
     }
 
     public void setCooldown(Player player, CustomEnchant enchant, ItemStack item) {

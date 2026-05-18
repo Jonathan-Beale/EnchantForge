@@ -8,6 +8,7 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
@@ -99,9 +100,11 @@ public class EnchantCommand implements CommandExecutor, TabCompleter {
                 "Applied " + enchant.getDisplayName() + " " + CustomEnchant.toRoman(level) + "!",
                 NamedTextColor.GREEN));
 
-        // Refresh effect if the item is currently equipped
-        for (ItemStack piece : player.getInventory().getArmorContents()) {
-            if (piece != null && piece.equals(item)) {
+        // Update index and apply effect if the item is currently equipped in an armor slot
+        for (EquipmentSlot slot : new EquipmentSlot[]{EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET}) {
+            ItemStack slotItem = player.getInventory().getItem(slot);
+            if (slotItem != null && slotItem.equals(item)) {
+                plugin.getEnchantIndex().updateSlot(player, slot, item, plugin.getRegistry());
                 enchant.apply(player, level);
                 break;
             }

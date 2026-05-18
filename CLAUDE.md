@@ -257,10 +257,30 @@ If you only need the enchant on the live server without bundling it, drop the YA
 
 ## Adding a new trigger type
 
-1. Create a class extending `EnchantTrigger` in `trigger/`
-2. Add a `fromYaml(ConfigurationSection)` static factory
-3. Register it in `EnchantTrigger.fromYaml()`
-4. Handle it in `DamageTakenListener.fires()` or `EquipmentEnchantListener` as appropriate
+Triggers come in three categories depending on where the enchant lives and what fires it.
+
+### Weapon trigger (enchant lives on a held item; fires on a Bukkit event)
+
+Examples: `on_deal_damage`, `on_kill_entity`
+
+1. Create a class extending `EnchantTrigger` in `trigger/` with a `public static final WeaponTriggerSpec<E> SPEC` field.
+   The spec declares: trigger ID, Bukkit event class, guard predicate, player extractor, weapon extractor, optional context builder.
+2. Add a `fromYaml` factory (usually `section -> new YourTrigger()`).
+3. Call `register("your_trigger", factory, YourTrigger.SPEC)` in `EnchantTriggerTypeRegistry`'s static block.
+4. If the trigger fires on a **new** Bukkit event class not already in `EnchantEventRouter`, add a one-line `@EventHandler` stub there.
+5. No other changes needed — the router discovers and registers the spec automatically at startup.
+
+### Armor trigger (enchant lives on equipped armor; fires on a Bukkit event; fire-and-forget)
+
+Examples: `on_sprint_start`, `on_jump`, `on_block_break`
+
+Same as weapon trigger but declare `public static final ArmorTriggerSpec<E> SPEC` instead. Dispatch reads from the equipped-armor index (`PlayerEnchantIndex`) rather than the weapon PDC. Use `register("your_trigger", factory, YourTrigger.SPEC)` (the `ArmorTriggerSpec` overload).
+
+### Complex armor trigger (needs end-condition tracking, absorption logic, or per-hit context)
+
+Examples: `on_damage_taken`, `stat_threshold`
+
+These are too intertwined with lifecycle management to fit the generic spec pattern. Handle them in `DamageTakenListener.fires()` / `resolveEndConditions()`, or add a new dedicated listener for a different event.
 
 ## Adding a new effect type
 

@@ -5,16 +5,15 @@ import com.example.enchantforge.condition.DamagedCondition;
 import com.example.enchantforge.condition.FullHealthOrDamagedCondition;
 import com.example.enchantforge.condition.StatThresholdCondition;
 import com.example.enchantforge.trigger.StatThresholdTrigger;
-import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
-import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 
 import java.util.ArrayList;
@@ -32,14 +31,17 @@ public class DamageTakenListener implements Listener {
     private final ActiveEffectTracker tracker;
     private final CombatTracker combatTracker;
     private final Plugin plugin;
+    private final PlayerEnchantIndex enchantIndex;
 
     public DamageTakenListener(EnchantmentRegistry registry, CooldownManager cooldowns,
-                                ActiveEffectTracker tracker, CombatTracker combatTracker, Plugin plugin) {
+                                ActiveEffectTracker tracker, CombatTracker combatTracker,
+                                Plugin plugin, PlayerEnchantIndex enchantIndex) {
         this.registry = registry;
         this.cooldowns = cooldowns;
         this.tracker = tracker;
         this.combatTracker = combatTracker;
         this.plugin = plugin;
+        this.enchantIndex = enchantIndex;
     }
 
     @SuppressWarnings("deprecation")
@@ -53,31 +55,39 @@ public class DamageTakenListener implements Listener {
         double finalDamage = event.getFinalDamage();
         double resultingHealth = Math.max(0, player.getHealth() - finalDamage);
 
-        signalOutOfCombatRefresh(player);
-
         // Step 1: resolve end conditions for active tracked effects
         resolveEndConditions(player, resultingHealth, true);
 
-        // Step 1b: any hit sets a fresh cooldown for ALL on_equip+DamagedCondition (or
-        // FullHealthOrDamagedCondition) enchants, including those on unequipped armor,
-        // so mid-combat equipping can't bypass the interrupt.
-        for (CustomEnchant enchant : registry.getAll()) {
-            if ("on_equip".equals(enchant.getTrigger().id())
-                    && (enchant.getEndCondition() instanceof DamagedCondition
+        UUID pid = player.getUniqueId();
+
+        // Step 1b: set a fresh cooldown for all on_equip+DamagedCondition enchants currently
+        // equipped, so mid-combat equip-swap can't bypass the interrupt.
+        List<PlayerEnchantIndex.SlottedEnchant> onEquipList = enchantIndex.getByTrigger(pid, "on_equip");
+        if (!onEquipList.isEmpty()) {
+            Set<NamespacedKey> cooledDown = new HashSet<>();
+            for (PlayerEnchantIndex.SlottedEnchant se : onEquipList) {
+                CustomEnchant enchant = se.enchant();
+                if ((enchant.getEndCondition() instanceof DamagedCondition
                         || enchant.getEndCondition() instanceof FullHealthOrDamagedCondition)
-                    && enchant.hasCooldown()) {
-                applyCooldown(player, enchant);
+                        && enchant.hasCooldown()
+                        && cooledDown.add(enchant.getKey())) {
+                    applyCooldown(player, enchant);
+                }
             }
         }
 
         // Step 2: collect and apply triggered enchants with stacking
+        List<PlayerEnchantIndex.SlottedEnchant> dmgList  = enchantIndex.getByTrigger(pid, "on_damage_taken");
+        List<PlayerEnchantIndex.SlottedEnchant> statList = enchantIndex.getByTrigger(pid, "stat_threshold");
+        if (!dmgList.isEmpty() || !statList.isEmpty()) {
         Map<NamespacedKey, List<Integer>> triggered = new LinkedHashMap<>();
         // Lazy-init set — only allocated when at least one debug enchant is encountered,
         // preventing duplicate skip messages when the same enchant appears on multiple pieces.
         Set<NamespacedKey>[] loggedSkip = new Set[]{null};
-        for (ItemStack piece : player.getInventory().getArmorContents()) {
-            registry.getEnchants(piece).forEach((enchant, level) -> {
-                if (!fires(enchant, player, resultingHealth)) return;
+        for (List<PlayerEnchantIndex.SlottedEnchant> list : new List[]{dmgList, statList}) {
+            for (PlayerEnchantIndex.SlottedEnchant se : list) {
+                CustomEnchant enchant = se.enchant();
+                if (!fires(enchant, player, resultingHealth)) continue;
                 if (cooldowns.isOnCooldown(player, enchant)) {
                     if (enchant.isDebug()) {
                         if (loggedSkip[0] == null) loggedSkip[0] = new HashSet<>();
@@ -85,7 +95,7 @@ public class DamageTakenListener implements Listener {
                             EnchantDebug.log(enchant, player, "trigger skipped — on cooldown ("
                                     + cooldowns.getRemainingSeconds(player, enchant) + "s left)");
                     }
-                    return;
+                    continue;
                 }
                 if (tracker.isTracked(player, enchant)) {
                     if (enchant.isDebug()) {
@@ -93,10 +103,10 @@ public class DamageTakenListener implements Listener {
                         if (loggedSkip[0].add(enchant.getKey()))
                             EnchantDebug.log(enchant, player, "trigger skipped — already active");
                     }
-                    return;
+                    continue;
                 }
-                triggered.computeIfAbsent(enchant.getKey(), k -> new ArrayList<>()).add(level);
-            });
+                triggered.computeIfAbsent(enchant.getKey(), k -> new ArrayList<>()).add(se.level());
+            }
         }
 
         triggered.forEach((key, levels) -> {
@@ -118,11 +128,11 @@ public class DamageTakenListener implements Listener {
                 EnchantDebug.log(enchant, player, "cooldown started (" + (enchant.getCooldownTicks() / 20) + "s)");
             }
         });
+        } // end if (!dmgList.isEmpty() || !statList.isEmpty())
 
         // Step 3: absorption-depleted check — deferred one tick because the server applies
         // absorption deduction after all MONITOR handlers complete
-        UUID playerId = player.getUniqueId();
-        boolean hasAbsorptionTracked = tracker.getActive(playerId).keySet().stream()
+        boolean hasAbsorptionTracked = tracker.getActive(pid).keySet().stream()
                 .map(registry::get)
                 .anyMatch(e -> e != null && e.getEndCondition() instanceof AbsorptionDepletedCondition);
         // Fire depletion only when we can compute from event data that absorption hit zero.
@@ -130,7 +140,7 @@ public class DamageTakenListener implements Listener {
         // armor-change cycle can reset it to full before the deferred task runs.
         if (hasAbsorptionTracked && absorptionBefore > 0 && finalDamage >= absorptionBefore) {
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                Player p = plugin.getServer().getPlayer(playerId);
+                Player p = plugin.getServer().getPlayer(pid);
                 if (p == null) return;
                 resolveAbsorptionDepleted(p);
             }, 1L);
@@ -140,9 +150,8 @@ public class DamageTakenListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onHealthRegen(EntityRegainHealthEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
-        double resultingHealth = Math.min(
-                player.getAttribute(Attribute.MAX_HEALTH).getValue(),
-                player.getHealth() + event.getAmount());
+        if (!tracker.hasActive(player.getUniqueId())) return;
+        double resultingHealth = Math.min(safeMaxHealth(player), player.getHealth() + event.getAmount());
         resolveEndConditions(player, resultingHealth, false);
     }
 
@@ -158,6 +167,7 @@ public class DamageTakenListener implements Listener {
     }
 
     private void resolveEndConditions(Player player, double resultingHealth, boolean damageEvent) {
+        if (!tracker.hasActive(player.getUniqueId())) return;
         var activeSnapshot = Map.copyOf(tracker.getActive(player.getUniqueId()));
         for (var entry : activeSnapshot.entrySet()) {
             NamespacedKey key = entry.getKey();
@@ -188,12 +198,16 @@ public class DamageTakenListener implements Listener {
             case DamagedCondition c -> damageEvent ? 1 : 0;
             case FullHealthOrDamagedCondition c -> {
                 if (damageEvent) yield 1;
-                double maxHp = player.getAttribute(Attribute.MAX_HEALTH).getValue();
-                yield resultingHealth >= maxHp - 0.001 ? 2 : 0;
+                yield resultingHealth >= safeMaxHealth(player) - 0.001 ? 2 : 0;
             }
             case StatThresholdCondition c -> c.matches(player, resultingHealth) ? 1 : 0;
             default -> 0;
         };
+    }
+
+    private static double safeMaxHealth(Player player) {
+        AttributeInstance attr = player.getAttribute(Attribute.MAX_HEALTH);
+        return attr != null ? attr.getValue() : 20.0;
     }
 
     /** Sum of level*4 HP that tracked AbsorptionDepletedCondition enchants are expected to provide. */
@@ -206,28 +220,6 @@ public class DamageTakenListener implements Listener {
             }
         }
         return expected;
-    }
-
-    /**
-     * Mirrors the out-of-combat refresh timer to vanilla's item cooldown so the sweep overlay
-     * shows time-until-hearts-restored. Reset each hit because the OOC timer resets each hit.
-     * Only applied when the piece's absorption is below the level-derived expected amount.
-     */
-    private void signalOutOfCombatRefresh(Player player) {
-        for (ItemStack piece : player.getInventory().getArmorContents()) {
-            if (piece == null || piece.getType() == Material.AIR) continue;
-            int maxRefreshTicks = 0;
-            double expectedAbs = 0;
-            for (Map.Entry<CustomEnchant, Integer> e : registry.getEnchants(piece).entrySet()) {
-                CustomEnchant enchant = e.getKey();
-                if (enchant.hasOutOfCombatRefresh()) {
-                    maxRefreshTicks = Math.max(maxRefreshTicks, enchant.getOutOfCombatRefreshTicks());
-                    expectedAbs = Math.max(expectedAbs, e.getValue() * 4.0);
-                }
-            }
-            // Intentionally skip vanilla item cooldown visuals. They are material-wide and can
-            // incorrectly suggest unrelated same-type items are on cooldown.
-        }
     }
 
     /** Sets only our internal per-enchant cooldown. */

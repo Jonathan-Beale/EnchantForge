@@ -7,7 +7,6 @@ import net.kyori.adventure.text.format.TextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.boss.BarColor;
@@ -18,7 +17,6 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerInputEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.util.Vector;
 
@@ -33,8 +31,8 @@ public class SuitListener implements Listener {
     private static SuitListener instance;
     public static SuitListener getInstance() { return instance; }
 
-    private final EnchantmentRegistry registry;
     private final Plugin plugin;
+    private final PlayerEnchantIndex enchantIndex;
 
     /** Players with the Friday AI helmet enchant currently equipped. */
     private final Set<UUID> activeSuit  = new HashSet<>();
@@ -57,9 +55,9 @@ public class SuitListener implements Listener {
 
     // -------------------------------------------------------------------------
 
-    public SuitListener(EnchantmentRegistry registry, Plugin plugin) {
-        this.registry = registry;
+    public SuitListener(EnchantmentRegistry registry, Plugin plugin, PlayerEnchantIndex enchantIndex) {
         this.plugin   = plugin;
+        this.enchantIndex = enchantIndex;
         instance = this;
         EnergyManager.registerCallback(this::onEnergyChanged);
         // 5-tick poll: BossBar refresh + fall guard + Friday audio checks
@@ -173,6 +171,9 @@ public class SuitListener implements Listener {
             return;
         }
 
+        // Skip all charge/fire logic for players without thruster boots equipped
+        if (enchantIndex.getByTrigger(player.getUniqueId(), "on_suit_jump").isEmpty()) return;
+
         if (jumping && !wasJumping) {
             // Rising edge mid-air: start charge if idle this air session
             if (!chargeState.containsKey(player.getUniqueId())) {
@@ -201,12 +202,9 @@ public class SuitListener implements Listener {
     }
 
     private void fireThruster(Player player, int chargeTicks) {
-        ItemStack boots = player.getInventory().getBoots();
-        if (boots == null || boots.getType() == Material.AIR) return;
-        for (Map.Entry<CustomEnchant, Integer> e : registry.getEnchants(boots).entrySet()) {
-            if (!"on_suit_jump".equals(e.getKey().getTrigger().id())) continue;
-            if (!(e.getKey().getEffect()  instanceof ThrusterEffect t))  continue;
-            t.fire(player, e.getValue(), chargeTicks);
+        for (PlayerEnchantIndex.SlottedEnchant se : enchantIndex.getByTrigger(player.getUniqueId(), "on_suit_jump")) {
+            if (!(se.enchant().getEffect() instanceof ThrusterEffect t)) continue;
+            t.fire(player, se.level(), chargeTicks);
             break;
         }
     }

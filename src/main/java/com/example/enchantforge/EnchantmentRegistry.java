@@ -38,8 +38,12 @@ public class EnchantmentRegistry {
         if (meta == null) return Map.of();
         var pdc = meta.getPersistentDataContainer();
         Map<CustomEnchant, Integer> result = new LinkedHashMap<>();
-        for (CustomEnchant enchant : enchants.values()) {
-            Integer level = pdc.get(enchant.getKey(), PersistentDataType.INTEGER);
+        // Iterate PDC keys rather than all registered enchants — O(keys on item) not O(all enchants).
+        // Most items have zero custom enchant keys, making this O(0) for unenchanted items.
+        for (NamespacedKey key : pdc.getKeys()) {
+            CustomEnchant enchant = enchants.get(key);
+            if (enchant == null) continue;
+            Integer level = pdc.get(key, PersistentDataType.INTEGER);
             if (level != null) result.put(enchant, level);
         }
         return result;
