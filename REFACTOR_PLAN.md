@@ -41,6 +41,11 @@ Four classes/utilities to implement, followed by updates to their consumers and 
 **Phase 7 — Minor Cleanup**
 - [ ] [§19 `DamageTakenListener` array hack](#19-damagetakenlistener--array-hack-mutable-box) — replace `Set[]` box with `AtomicReference`
 
+**Phase 8 — UI Screens**
+- [x] [§20 Enchantment Catalog](#20-enchantment-catalog--already-present) — technical browse screen via `VibeCraftUiBridge.openEnchantCatalog()`; present
+- [ ] [§21 Product Guide](#21-product-guide--player-facing-capability-overview) — player-facing capability overview; plain language, no YAML keys or tick values
+- [ ] [§22 AI Manual](#22-ai-manual--in-game-technical-reference) — in-game technical reference with file, class, and method pointers for AI consultation
+
 ---
 
 ## 1. `EnchantEffectContext` — Extensible Key-Value Context
@@ -709,3 +714,186 @@ Generalization refactors first (§1–4), then correctness gaps (§5–6), then 
 | `effect/ScoreboardTeamUtil.java` | Create | 6 |
 | `CooldownVisuals.java` | Edit (remove reflection + fallback machinery) | 6 |
 | `DamageTakenListener.java` | Edit (AtomicReference for loggedSkip) | 7 |
+| `CustomEnchant.java` | Edit (add `category` field, parse from YAML) | 8 |
+| `VibeCraftUiBridge.java` | Edit (add `openProductGuide`, `openAIManual`) | 8 |
+| `enchants/*.yml` | Edit (add `category:` field to each) | 8 |
+
+---
+
+## 20. Enchantment Catalog — Already Present
+
+**File:** `VibeCraftUiBridge.java` → `openEnchantCatalog(Player, EnchantmentRegistry)`
+
+The catalog is the existing VibeCraftMod screen opened by right-clicking the catalog item (wired
+in `EnchantCatalogListener`) or via `/cenchant catalog`. It generates a schema-driven screen from
+all registered enchants: collapsible cards, search bar, tag and item filters.
+
+Each card shows: display name, level range, trigger type ID, applicable items, effect style,
+cooldown ticks, duration type, and the YAML description. This is a technical view — appropriate
+for server admins and modpack builders, not for general players.
+
+No changes planned for the catalog itself. The Product Guide (§21) is the player-facing
+counterpart; the AI Manual (§22) is the developer-facing counterpart.
+
+---
+
+## 21. Product Guide — Player-Facing Capability Overview
+
+**File:** `VibeCraftUiBridge.java` (new method `openProductGuide`)
+
+**Purpose:** A screen that answers "what can my gear do?" without exposing YAML keys, tick values,
+trigger type names, or internal identifiers. Intended for players discovering the enchantment
+system for the first time or browsing what is available.
+
+**Design principles:**
+- Group enchants by `category` (a new YAML field: `offensive`, `defensive`, `mobility`,
+  `survival`, `utility`, `transform`) rather than listing them alphabetically
+- Convert all technical values to human-readable form before display:
+  - Cooldown: `1200 ticks` → `60s cooldown` (or `no cooldown`)
+  - Duration: `time/600` → `lasts 30s`; `until_condition/damaged` → `until next hit`; `never` → `permanent`
+  - Trigger: `on_equip` → `while equipped`; `on_damage_taken` → `activates when you take damage`;
+    `stat_threshold/health/below/6` → `activates below 3 hearts`; `on_right_click` → `right-click to activate`
+  - Item slots: `_CHESTPLATE` → `chest armor`; `ARMOR` → `any armor`
+- Show the `description` field as the primary content (it is already player-written)
+- Do not show: enchant key, trigger type ID, effect style, YAML field names, tick counts
+
+**New YAML field: `category`**
+
+Add to `CustomEnchant.java` and each enchant YAML:
+```yaml
+category: defensive   # offensive | defensive | mobility | survival | utility | transform
+```
+Enchants without `category` fall into an `uncategorized` group at the bottom.
+
+**Schema structure (`openProductGuide`):**
+
+```java
+public static void openProductGuide(Player player, EnchantmentRegistry registry) {
+    // Group enchants by category
+    Map<String, List<CustomEnchant>> byCategory = registry.all().stream()
+        .collect(Collectors.groupingBy(
+            e -> e.getCategory() != null ? e.getCategory() : "uncategorized",
+            LinkedHashMap::new, Collectors.toList()
+        ));
+
+    // Build widgets: one collapsible section per category
+    List<Map<String, Object>> widgets = new ArrayList<>();
+    for (var entry : byCategory.entrySet()) {
+        widgets.add(buildCategorySection(entry.getKey(), entry.getValue()));
+    }
+
+    // Send ui_schema + open_screen
+    sendScreen(player, "enchantforge:product_guide", "EnchantForge Guide", widgets);
+}
+```
+
+Each category section is a `collapsible` containing one card per enchant. Each card shows:
+- **Name** (displayName + max level badge)
+- **Slot** (plain-English item slot description)
+- **How it works** (plain-English trigger + effect description)
+- **Duration** (plain-English end condition)
+- **Cooldown** (seconds, or omitted if 0)
+- **Description** (the `description` field)
+
+**Scope:**
+- `CustomEnchant.java` — add `String category` field; parse `section.getString("category")` in
+  `fromYaml()`
+- `VibeCraftUiBridge.java` — add `openProductGuide()` + helper methods for plain-English
+  conversion of trigger/duration/slot; a `formatTrigger(EnchantTrigger)`,
+  `formatDuration(EndCondition, int)`, `formatSlot(List<String>)` helper set
+- `enchants/*.yml` — add `category:` to each bundled enchant
+- `EnchantCatalogListener.java` or `EnchantCommand.java` — wire the new screen to a command or
+  item (e.g., `/cenchant guide` or a separate guide item)
+
+---
+
+## 22. AI Manual — In-Game Technical Reference
+
+**File:** `VibeCraftUiBridge.java` (new method `openAIManual`)
+
+**Purpose:** A comprehensive reference screen for the AI (Claude/VibeCraft) to consult when
+assisting with EnchantForge development. Contains file paths, class names, method signatures, key
+patterns, extension points, and runtime lifecycle — organized so the AI can navigate directly to
+the relevant section without re-reading source files.
+
+Unlike CLAUDE.md (which is prose), the manual is structured for in-game browsing and is generated
+partly dynamically (the registered trigger/effect/condition types are listed from the live
+registry, so the manual stays current as new types are added).
+
+**Screen structure (sections as `collapsible` widgets):**
+
+**§ Architecture**
+- Package: `com.example.enchantforge`
+- Entry point: `EnchantForge.java` — `onEnable()` wires all managers, listeners, and registries;
+  `onDisable()` tears them down; `reload()` clears player state and re-runs `loadEnchantments()`
+- Key collaborators passed by constructor injection: `EnchantmentRegistry`, `CooldownManager`,
+  `ActiveEffectTracker`, `CombatTracker`, `PlayerEnchantIndex`, `PlayerResourcePool` (§4),
+  `VibeCraftUiBridge`
+
+**§ Key Files**
+Formatted as a table: file path → one-line role, matching the Files Touched Summary pattern
+throughout this document. Covers all files in the project layout section of CLAUDE.md. Includes
+`src/` paths so the AI can issue a `Read` tool call directly.
+
+**§ YAML Schema**
+The full enchant YAML schema from CLAUDE.md, reproduced verbatim with field names, accepted
+values, and inline comments. Includes the `category` field added in §21 and `glintColor` added
+in the VibeCraftMod plan (§7).
+
+**§ Trigger Types** *(dynamic — from `EnchantTriggerTypeRegistry`)*
+Lists every registered trigger type ID, its class, spec type (`WeaponTriggerSpec` /
+`ArmorTriggerSpec`), Bukkit event class, and a one-line description. Generated at screen-open
+time from the live registry so new trigger types appear automatically.
+
+**§ Effect Types** *(dynamic — from `EnchantEffectTypeRegistry`)*
+Lists every registered effect style ID, its class, and a one-line description. Generated from
+the live registry.
+
+**§ End Conditions** *(static — from `EndCondition.fromYaml()` switch)*
+Lists each condition type string, the class that handles it, and its `getDisplayLabel()` return
+value. Static because the registry is a switch block rather than a keyed map.
+
+**§ Extension Points**
+Prose instructions for: adding a trigger type, adding an effect type, adding an end condition —
+matching the "Adding a new trigger type" section in CLAUDE.md, including the specific method
+names and files to edit.
+
+**§ Runtime Lifecycle**
+Sequence: load → equip → trigger → cooldown → end condition → reapply. References the exact
+methods involved at each step:
+- `loadEnchantments()` → `CustomEnchant.fromYaml()` → `EnchantmentRegistry.register()`
+- `EquipmentEnchantListener.applyOnEquip()` → `EnchantmentRegistry.getEnchants(ItemStack)`
+- `DamageTakenListener.onDamageTaken()` → `EnchantEventRouter.dispatchArmor()` →
+  `StackingDispatcher.dispatch()` → `CustomEnchant.apply()`
+- `DamageTakenListener.resolveEndConditions()` → `EndCondition.matches()` →
+  `ActiveEffectTracker.clear()` + `CooldownManager.setCooldown()`
+- `EquipmentEnchantListener.reapplyTicker` (20-tick) → checks cooldown expired → `applyOnEquip()`
+
+**§ Debug System**
+`EnchantDebug.log(enchant, player, msg)` — no-ops when `enchant.isDebug()` is false. Enable per
+enchant with `debug: true` in YAML. Enable cooldown diagnostics with `debug.cooldownVisuals: true`
+in `config.yml`. Use `/ctestcooldown` to verify item-scoped cooldown behavior on the held item.
+
+**§ VibeCraftMod Integration**
+Channel: `vibecraft:events` (plugin messaging). All messages are JSON with a `type` field.
+Relevant types sent by EnchantForge: `ui_schema`, `open_screen`, `binding_update`,
+`binding_updates`. `VibeCraftUiBridge.java` is the sole integration point — all outbound messages
+go through it. References the REFACTOR_PLAN.md in VibeCraftMod for the full list of planned
+binding keys (`enchantforge.energy`, `enchantforge.cooldown.*`, etc.).
+
+**Implementation notes:**
+
+The manual is mostly static content assembled in `openAIManual()`. The dynamic sections
+(trigger types, effect types) call `EnchantTriggerTypeRegistry.registeredIds()` and
+`EnchantEffectTypeRegistry.registeredIds()` — these methods do not currently exist and need to
+be added (simple `return Collections.unmodifiableSet(registry.keySet())`).
+
+The screen does not need to be wired to a player-accessible command or item; it is intended to be
+opened programmatically by the AI via VibeCraft, not by players navigating menus.
+
+**Scope:**
+- `VibeCraftUiBridge.java` — add `openAIManual(Player, EnchantmentRegistry)` + static content
+  builders for each section
+- `EnchantTriggerTypeRegistry.java` — add `registeredIds()` and `getSpec(String)` accessors
+- `EnchantEffectTypeRegistry.java` — add `registeredIds()` accessor
+- No YAML changes needed
