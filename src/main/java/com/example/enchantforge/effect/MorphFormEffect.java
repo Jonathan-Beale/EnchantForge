@@ -1,7 +1,6 @@
 package com.example.enchantforge.effect;
 
 import com.example.enchantforge.VisibilityUtil;
-import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
@@ -18,8 +17,6 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
-import org.bukkit.scoreboard.Scoreboard;
-import org.bukkit.scoreboard.Team;
 import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
@@ -36,6 +33,7 @@ public class MorphFormEffect implements EnchantEffect, Listener {
     private static Plugin plugin;
     private static final Map<UUID, ActiveMorph> activeMorphs = new HashMap<>();
 
+    private static final String TEAM = "ef_morph_nc";
     private final EntityType morphEntityType;
     private final List<PotionSpec> potionSpecs;
     private final boolean mimicSwing;
@@ -127,7 +125,7 @@ public class MorphFormEffect implements EnchantEffect, Listener {
             morphEntity.setCollidable(false);
             morphEntity.setInvulnerable(true);
             morphEntity.setPersistent(false);
-            addNoCollideEntries(player, morphEntity);
+        addNoCollideEntries(player, morphEntity);
         }
 
         UUID id = player.getUniqueId();
@@ -179,7 +177,7 @@ public class MorphFormEffect implements EnchantEffect, Listener {
 
     private static void removeActive(UUID playerId) {
         ActiveMorph active = activeMorphs.remove(playerId);
-        Player player = Bukkit.getPlayer(playerId);
+        Player player = plugin.getServer().getPlayer(playerId);
         if (active == null) return;
 
         if (active.task != null) active.task.cancel();
@@ -203,24 +201,15 @@ public class MorphFormEffect implements EnchantEffect, Listener {
     }
 
     private static void addNoCollideEntries(Player player, LivingEntity entity) {
-        Scoreboard board = Bukkit.getScoreboardManager().getMainScoreboard();
-        Team noCollide = board.getTeam("ef_morph_nc");
-        if (noCollide == null) {
-            noCollide = board.registerNewTeam("ef_morph_nc");
-            noCollide.setOption(Team.Option.COLLISION_RULE, Team.OptionStatus.NEVER);
-        }
-        if (player != null) {
-            noCollide.addEntry(player.getName());
-        }
-        noCollide.addEntry(entity.getUniqueId().toString());
+        ScoreboardTeamUtil.addNeverCollide(TEAM,
+                player != null ? player.getName() : null,
+                entity.getUniqueId().toString());
     }
 
     private static void removeNoCollideEntries(Player player, LivingEntity entity) {
-        Scoreboard board = Bukkit.getScoreboardManager().getMainScoreboard();
-        Team noCollide = board.getTeam("ef_morph_nc");
-        if (noCollide == null) return;
-        if (player != null) noCollide.removeEntry(player.getName());
-        noCollide.removeEntry(entity.getUniqueId().toString());
+        ScoreboardTeamUtil.removeNeverCollide(TEAM,
+                player != null ? player.getName() : null,
+                entity.getUniqueId().toString());
     }
 
     private static List<PotionSpec> parsePotionSpecs(ConfigurationSection section) {

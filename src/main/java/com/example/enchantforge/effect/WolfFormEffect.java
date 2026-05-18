@@ -1,7 +1,6 @@
 package com.example.enchantforge.effect;
 
 import com.example.enchantforge.VisibilityUtil;
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Wolf;
 import org.bukkit.event.EventHandler;
@@ -12,8 +11,6 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
-import org.bukkit.scoreboard.Scoreboard;
-import org.bukkit.scoreboard.Team;
 import org.bukkit.util.Vector;
 
 import java.util.HashMap;
@@ -25,6 +22,7 @@ public class WolfFormEffect implements EnchantEffect, Listener {
     public static final WolfFormEffect INSTANCE = new WolfFormEffect();
     private static Plugin plugin;
 
+    private static final String TEAM = "ef_wolf_nc";
     private static final Map<UUID, Wolf>       wolves = new HashMap<>();
     private static final Map<UUID, BukkitTask> tasks  = new HashMap<>();
 
@@ -40,6 +38,7 @@ public class WolfFormEffect implements EnchantEffect, Listener {
 
     @Override
     public void apply(Player player, int enchantLevel, int durationTicks) {
+        if (plugin == null) throw new IllegalStateException("WolfFormEffect not initialized — call init() first");
         UUID id = player.getUniqueId();
         remove(player);
 
@@ -58,21 +57,11 @@ public class WolfFormEffect implements EnchantEffect, Listener {
             w.setInvulnerable(true);
             w.setPersistent(false);
         });
-        // Re-apply after full spawn in case post-spawn initialisation resets these flags
         wolf.setGravity(false);
         wolf.setCollidable(false);
         wolves.put(id, wolf);
 
-        // Belt-and-suspenders: NEVER collision rule so the wolf cannot push the player
-        // even if setCollidable is bypassed by the server's entity-separation logic
-        Scoreboard board = Bukkit.getScoreboardManager().getMainScoreboard();
-        Team noCollide = board.getTeam("ef_wolf_nc");
-        if (noCollide == null) {
-            noCollide = board.registerNewTeam("ef_wolf_nc");
-            noCollide.setOption(Team.Option.COLLISION_RULE, Team.OptionStatus.NEVER);
-        }
-        noCollide.addEntry(player.getName());
-        noCollide.addEntry(wolf.getUniqueId().toString());
+        ScoreboardTeamUtil.addNeverCollide(TEAM, player.getName(), wolf.getUniqueId().toString());
 
         BukkitTask[] ref = {null};
         ref[0] = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
@@ -103,14 +92,8 @@ public class WolfFormEffect implements EnchantEffect, Listener {
         Wolf wolf = wolves.remove(id);
         if (wolf != null && !wolf.isDead()) wolf.remove();
 
-        Scoreboard board = Bukkit.getScoreboardManager().getMainScoreboard();
-        Team noCollide = board.getTeam("ef_wolf_nc");
-        if (noCollide != null) {
-            noCollide.removeEntry(player.getName());
-            if (wolf != null) {
-                noCollide.removeEntry(wolf.getUniqueId().toString());
-            }
-        }
+        ScoreboardTeamUtil.removeNeverCollide(TEAM, player.getName(),
+                wolf != null ? wolf.getUniqueId().toString() : null);
 
         VisibilityUtil.show(player);
 
@@ -120,9 +103,6 @@ public class WolfFormEffect implements EnchantEffect, Listener {
         player.removePotionEffect(PotionEffectType.NIGHT_VISION);
     }
 
-    // -------------------------------------------------------------------------
-
-    /** Mirror the player's arm swing to the wolf so it looks like a bite attack. */
     @EventHandler
     public void onPlayerSwing(PlayerAnimationEvent event) {
         if (event.getAnimationType() != PlayerAnimationType.ARM_SWING) return;

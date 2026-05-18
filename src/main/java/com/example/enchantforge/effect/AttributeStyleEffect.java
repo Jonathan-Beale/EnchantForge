@@ -1,6 +1,7 @@
 package com.example.enchantforge.effect;
 
 import org.bukkit.NamespacedKey;
+import org.bukkit.Registry;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
@@ -59,11 +60,11 @@ public class AttributeStyleEffect implements EnchantEffect {
     public EquipmentSlotGroup getSlotGroup() { return slotGroup; }
 
     private static Attribute resolveAttribute(String name) {
-        try {
-            return (Attribute) Attribute.class.getField(name.toUpperCase()).get(null);
-        } catch (NoSuchFieldException | IllegalAccessException e) {
+        Attribute attr = Registry.ATTRIBUTE.get(NamespacedKey.minecraft(name.toLowerCase()));
+        if (attr == null) {
             throw new IllegalArgumentException("Unknown attribute: " + name);
         }
+        return attr;
     }
 
     private static EquipmentSlotGroup resolveSlotGroup(String name) {

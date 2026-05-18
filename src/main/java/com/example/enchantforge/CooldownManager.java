@@ -1,12 +1,16 @@
 package com.example.enchantforge;
 
 import org.bukkit.NamespacedKey;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.logging.Logger;
 
 public class CooldownManager {
 
@@ -84,7 +88,89 @@ public class CooldownManager {
         itemCooldowns.remove(playerId);
     }
 
+    // ---- Persistence ----
+
+    public void save(File file) {
+        long now = System.currentTimeMillis();
+        YamlConfiguration yaml = new YamlConfiguration();
+
+        cooldowns.forEach((uuid, enchantMap) -> enchantMap.forEach((key, expiry) -> {
+            if (expiry > now) {
+                yaml.set("player-cooldowns." + uuid + "." + key.toString(), expiry);
+            }
+        }));
+
+        itemCooldowns.forEach((uuid, keyMap) -> keyMap.forEach((compoundKey, expiry) -> {
+            if (expiry > now) {
+                // compound key may contain dots — use raw path setter via explicit nesting
+                yaml.set("item-cooldowns." + uuid + "." + sanitizeKey(compoundKey), expiry);
+            }
+        }));
+
+        try {
+            yaml.save(file);
+        } catch (IOException e) {
+            Logger.getLogger("EnchantForge").warning("Failed to save cooldowns: " + e.getMessage());
+        }
+    }
+
+    public void load(File file) {
+        if (!file.exists()) return;
+        long now = System.currentTimeMillis();
+        YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
+
+        var playerSection = yaml.getConfigurationSection("player-cooldowns");
+        if (playerSection != null) {
+            for (String uuidStr : playerSection.getKeys(false)) {
+                UUID uuid;
+                try { uuid = UUID.fromString(uuidStr); } catch (IllegalArgumentException e) { continue; }
+                var enchantSection = playerSection.getConfigurationSection(uuidStr);
+                if (enchantSection == null) continue;
+                for (String keyStr : enchantSection.getKeys(false)) {
+                    long expiry = enchantSection.getLong(keyStr);
+                    if (expiry <= now) continue;
+                    NamespacedKey key = parseNamespacedKey(keyStr);
+                    if (key == null) continue;
+                    cooldowns.computeIfAbsent(uuid, k -> new HashMap<>()).put(key, expiry);
+                }
+            }
+        }
+
+        var itemSection = yaml.getConfigurationSection("item-cooldowns");
+        if (itemSection != null) {
+            for (String uuidStr : itemSection.getKeys(false)) {
+                UUID uuid;
+                try { uuid = UUID.fromString(uuidStr); } catch (IllegalArgumentException e) { continue; }
+                var entrySection = itemSection.getConfigurationSection(uuidStr);
+                if (entrySection == null) continue;
+                for (String sanitized : entrySection.getKeys(false)) {
+                    long expiry = entrySection.getLong(sanitized);
+                    if (expiry <= now) continue;
+                    String compoundKey = desanitizeKey(sanitized);
+                    itemCooldowns.computeIfAbsent(uuid, k -> new HashMap<>()).put(compoundKey, expiry);
+                }
+            }
+        }
+    }
+
+    // ---- Helpers ----
+
     private String itemKey(NamespacedKey enchantKey, String itemId) {
         return enchantKey.getNamespace() + ":" + enchantKey.getKey() + "|" + itemId;
+    }
+
+    /** YAML keys cannot contain dots; replace them with a safe placeholder. */
+    private static String sanitizeKey(String key) {
+        return key.replace(".", "\u00B7");
+    }
+
+    private static String desanitizeKey(String key) {
+        return key.replace("\u00B7", ".");
+    }
+
+    private static NamespacedKey parseNamespacedKey(String s) {
+        int idx = s.indexOf(':');
+        if (idx < 1 || idx >= s.length() - 1) return null;
+        return new NamespacedKey(s.substring(0, idx), s.substring(idx + 1));
     }
 }

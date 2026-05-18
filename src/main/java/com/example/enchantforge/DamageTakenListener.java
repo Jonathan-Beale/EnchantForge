@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class DamageTakenListener implements Listener {
 
@@ -83,15 +84,15 @@ public class DamageTakenListener implements Listener {
         Map<NamespacedKey, List<Integer>> triggered = new LinkedHashMap<>();
         // Lazy-init set — only allocated when at least one debug enchant is encountered,
         // preventing duplicate skip messages when the same enchant appears on multiple pieces.
-        Set<NamespacedKey>[] loggedSkip = new Set[]{null};
+        AtomicReference<Set<NamespacedKey>> loggedSkip = new AtomicReference<>();
         for (List<PlayerEnchantIndex.SlottedEnchant> list : new List[]{dmgList, statList}) {
             for (PlayerEnchantIndex.SlottedEnchant se : list) {
                 CustomEnchant enchant = se.enchant();
                 if (!fires(enchant, player, resultingHealth)) continue;
                 if (cooldowns.isOnCooldown(player, enchant)) {
                     if (enchant.isDebug()) {
-                        if (loggedSkip[0] == null) loggedSkip[0] = new HashSet<>();
-                        if (loggedSkip[0].add(enchant.getKey()))
+                        if (loggedSkip.get() == null) loggedSkip.set(new HashSet<>());
+                        if (loggedSkip.get().add(enchant.getKey()))
                             EnchantDebug.log(enchant, player, "trigger skipped — on cooldown ("
                                     + cooldowns.getRemainingSeconds(player, enchant) + "s left)");
                     }
@@ -99,8 +100,8 @@ public class DamageTakenListener implements Listener {
                 }
                 if (tracker.isTracked(player, enchant)) {
                     if (enchant.isDebug()) {
-                        if (loggedSkip[0] == null) loggedSkip[0] = new HashSet<>();
-                        if (loggedSkip[0].add(enchant.getKey()))
+                        if (loggedSkip.get() == null) loggedSkip.set(new HashSet<>());
+                        if (loggedSkip.get().add(enchant.getKey()))
                             EnchantDebug.log(enchant, player, "trigger skipped — already active");
                     }
                     continue;

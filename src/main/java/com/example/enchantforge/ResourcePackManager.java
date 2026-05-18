@@ -34,8 +34,27 @@ public class ResourcePackManager {
 
     public void generatePack() {
         File packFile = new File(plugin.getDataFolder(), "enchantforge_pack.zip");
+        File hashFile = new File(plugin.getDataFolder(), "pack.sha256");
         try {
-            buildZip(packFile);
+            byte[] zipBytes = buildZipBytes();
+            String newHash = sha256Hex(zipBytes);
+
+            // Skip write + server restart if pack content is unchanged
+            if (packFile.exists() && hashFile.exists()) {
+                String storedHash = new String(java.nio.file.Files.readAllBytes(hashFile.toPath()),
+                        StandardCharsets.UTF_8).trim();
+                if (newHash.equals(storedHash)) {
+                    packHashHex = sha1Hex(packFile);
+                    plugin.getLogger().info("Resource pack unchanged — skipping regeneration.");
+                    startHttpServer();
+                    return;
+                }
+            }
+
+            try (FileOutputStream fos = new FileOutputStream(packFile)) {
+                fos.write(zipBytes);
+            }
+            java.nio.file.Files.write(hashFile.toPath(), newHash.getBytes(StandardCharsets.UTF_8));
             packHashHex = sha1Hex(packFile);
             plugin.getLogger().info("Resource pack generated.");
         } catch (Exception e) {
@@ -122,15 +141,23 @@ public class ResourcePackManager {
 
     // -------------------------------------------------------------------------
 
-    private static void buildZip(File dest) throws Exception {
-        try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(dest))) {
+    private static byte[] buildZipBytes() throws Exception {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
             addText(zos, "pack.mcmeta", packMeta());
-            // Absorption heart recolors
             String base = "assets/minecraft/textures/gui/sprites/hud/heart/";
             addBytes(zos, base + "absorbing_full.png",          heartPng(true,  false));
             addBytes(zos, base + "absorbing_half.png",          heartPng(false, false));
             addBytes(zos, base + "absorbing_full_blinking.png", heartPng(true,  true));
             addBytes(zos, base + "absorbing_half_blinking.png", heartPng(false, true));
+        }
+        return baos.toByteArray();
+    }
+
+    private static void buildZip(File dest) throws Exception {
+        byte[] bytes = buildZipBytes();
+        try (FileOutputStream fos = new FileOutputStream(dest)) {
+            fos.write(bytes);
         }
     }
 
@@ -197,6 +224,14 @@ public class ResourcePackManager {
             int n;
             while ((n = in.read(buf)) >= 0) md.update(buf, 0, n);
         }
+        StringBuilder sb = new StringBuilder();
+        for (byte b : md.digest()) sb.append(String.format("%02x", b));
+        return sb.toString();
+    }
+
+    private static String sha256Hex(byte[] data) throws Exception {
+        MessageDigest md = MessageDigest.getInstance("SHA-256");
+        md.update(data);
         StringBuilder sb = new StringBuilder();
         for (byte b : md.digest()) sb.append(String.format("%02x", b));
         return sb.toString();
