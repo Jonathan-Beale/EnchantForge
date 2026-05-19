@@ -133,9 +133,7 @@ public class ResourcePackManager {
             plugin.getLogger().info("Resource pack URL: " + effectiveUrl);
         } else {
             effectiveUrl = "";
-            plugin.getLogger().warning(
-                "Resource pack host not configured -- absorption hearts will use default color. " +
-                "Set resource-pack.host in config.yml.");
+            plugin.getLogger().info("Resource pack host not configured; absorption hearts will use default color.");
         }
     }
 

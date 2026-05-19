@@ -3,7 +3,9 @@ package com.example.enchantforge;
 import com.example.enchantforge.effect.HandLaserEffect;
 import com.example.enchantforge.effect.MorphFormEffect;
 import com.example.enchantforge.effect.PlayerResourcePool;
+import com.example.enchantforge.effect.RaycastDamageEffect;
 import com.example.enchantforge.effect.ThrusterEffect;
+import com.example.enchantforge.effect.VelocityImpulseEffect;
 import com.example.enchantforge.effect.WolfFormEffect;
 import com.example.enchantforge.trigger.EnchantTriggerTypeRegistry;
 import net.kyori.adventure.text.Component;
@@ -18,6 +20,12 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.util.Arrays;
 
 public class EnchantForge extends JavaPlugin {
 
@@ -47,9 +55,11 @@ public class EnchantForge extends JavaPlugin {
         tracker = new ActiveEffectTracker();
         combatTracker = new CombatTracker();
         enchantIndex = new PlayerEnchantIndex();
-        energy = new PlayerResourcePool(100.0, 0.4);
+        energy = new PlayerResourcePool(5000.0, 20.0);
         ThrusterEffect.init(energy);
         HandLaserEffect.init(energy);
+        RaycastDamageEffect.init(energy);
+        VelocityImpulseEffect.init(energy);
 
         getServer().getMessenger().registerOutgoingPluginChannel(this, "vibecraft:events");
         uiBridge = new VibeCraftUiBridge(this);
@@ -112,6 +122,13 @@ public class EnchantForge extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        // Remove all active effects before the plugin shuts down so that boss bars,
+        // attribute modifiers, and potion effects are not left orphaned across reloads.
+        if (registry != null) {
+            for (Player player : getServer().getOnlinePlayers()) {
+                for (CustomEnchant enchant : registry.getAll()) enchant.remove(player);
+            }
+        }
         cooldowns.save(new File(getDataFolder(), "cooldowns.yml"));
         getServer().getMessenger().unregisterOutgoingPluginChannel(this, "vibecraft:events");
         getServer().getMessenger().unregisterIncomingPluginChannel(this, "vibecraft:input");
@@ -152,17 +169,25 @@ public class EnchantForge extends JavaPlugin {
     // -------------------------------------------------------------------------
 
     private void saveDefaultEnchants() {
-        new File(getDataFolder(), "enchants").mkdirs();
+        File enchantsDir = new File(getDataFolder(), "enchants");
+        enchantsDir.mkdirs();
         for (String name : new String[]{"berserker.yml", "vitality.yml", "bulwark.yml",
                                         "iron_skin.yml", "swift_steps.yml", "reactive_guard.yml", "last_stand.yml",
                                         "steadfast.yml", "soulfeast.yml", "vampiric.yml",
                                         "shadow_veil.yml", "feral_form.yml", "eye_laser.yml",
                                         "thruster_boots.yml", "hand_laser.yml",
                                         "ai_interface.yml"}) {
+            InputStream bundled = getResource("enchants/" + name);
+            if (bundled == null) continue;
+            File deployed = new File(enchantsDir, name);
             try {
-                saveResource("enchants/" + name, false);
-            } catch (IllegalArgumentException ignored) {
-                // Not bundled in this jar — skip silently
+                byte[] bundledBytes = bundled.readAllBytes();
+                if (deployed.exists() && Arrays.equals(bundledBytes, Files.readAllBytes(deployed.toPath()))) continue;
+                try (OutputStream out = new FileOutputStream(deployed)) {
+                    out.write(bundledBytes);
+                }
+            } catch (IOException e) {
+                getLogger().severe("Failed to save " + name + ": " + e.getMessage());
             }
         }
     }

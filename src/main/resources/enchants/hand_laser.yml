@@ -1,7 +1,6 @@
 displayName: "Repulsor"
 category: offensive
 maxLevel: 3
-# Gauntlet slot = off-hand. Apply to any ingot/rod the player will hold in their left hand.
 applicableTo:
   - IRON_INGOT
   - GOLD_INGOT
@@ -22,10 +21,53 @@ trigger:
   type: on_right_click
 
 effect:
-  style: hand_laser
+  style: raycast_damage
   range: 25.0
-  damage: 6.0
-  energy_cost: 15.0
+  damagePerLevel: 6.0
+  knockback: 2.0
+  energyCost: 15.0
+
+  visuals:
+    on_fire:
+      - type: sound
+        sound: ENTITY_GUARDIAN_ATTACK
+        volume: 1.1
+        pitch: 2.0
+      - type: sound
+        sound: BLOCK_BEACON_ACTIVATE
+        volume: 0.5
+        pitch: 2.0
+      - type: beam
+        particle: END_ROD
+        spacing: 0.3
+        range: 25.0
+        offset_x: 0.02
+        offset_y: 0.02
+        offset_z: 0.02
+    on_hit:
+      - type: burst
+        particle: END_ROD
+        count: 35
+        radius: 0.45
+        speed: 0.35
+      - type: burst
+        particle: ELECTRIC_SPARK
+        count: 25
+        radius: 0.35
+        speed: 0.12
+      - type: burst
+        particle: EXPLOSION_EMITTER
+        count: 2
+        radius: 0.2
+      - type: sound
+        sound: ENTITY_GENERIC_EXPLODE
+        volume: 0.9
+        pitch: 1.8
+    on_miss:
+      - type: sound
+        sound: ENTITY_ARROW_HIT_PLAYER
+        volume: 0.6
+        pitch: 0.9
 
 duration:
   type: never
@@ -34,4 +76,3 @@ cooldown: 5
 stackBehavior: HIGHEST
 displayAmountPerLevel: 6.0
 description: "Repulsor beam — hold in off-hand as gauntlet, draws from shared suit energy"
-

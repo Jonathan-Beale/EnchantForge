@@ -1,26 +1,14 @@
 package com.example.enchantforge;
 
-import com.example.enchantforge.condition.AbsorptionDepletedCondition;
-import com.example.enchantforge.condition.DamagedCondition;
-import com.example.enchantforge.condition.EndCondition;
-import com.example.enchantforge.condition.FullHealthOrDamagedCondition;
-import com.example.enchantforge.condition.NeverCondition;
-import com.example.enchantforge.condition.TimeCondition;
 import com.example.enchantforge.effect.EnchantEffectTypeRegistry;
-import com.example.enchantforge.trigger.EnchantTrigger;
 import com.example.enchantforge.trigger.EnchantTriggerTypeRegistry;
-import com.example.enchantforge.trigger.StatThresholdTrigger;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.TreeSet;
 
 /**
@@ -34,9 +22,6 @@ public final class VibeCraftUiBridge {
 
     private final JavaPlugin plugin;
     private static final boolean ENCHANTFORGE_CATALOG_UI_ENABLED = true;
-
-    private static final List<String> CATEGORY_ORDER =
-            List.of("offensive", "defensive", "mobility", "survival", "utility", "transform");
 
     public VibeCraftUiBridge(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -57,114 +42,87 @@ public final class VibeCraftUiBridge {
     // ---- Product Guide ----
 
     public void openProductGuide(Player player, EnchantmentRegistry registry) {
-        Map<String, List<CustomEnchant>> byCategory = new LinkedHashMap<>();
-        for (String cat : CATEGORY_ORDER) byCategory.put(cat, new ArrayList<>());
-
-        for (CustomEnchant e : registry.getAll()) {
-            String cat = e.getCategory() != null ? e.getCategory().toLowerCase(Locale.ROOT) : "uncategorized";
-            byCategory.computeIfAbsent(cat, k -> new ArrayList<>()).add(e);
-        }
-        byCategory.values().forEach(list ->
-                list.sort(java.util.Comparator.comparing(CustomEnchant::getDisplayName, String.CASE_INSENSITIVE_ORDER)));
-
         JsonArray sections = new JsonArray();
-        for (var entry : byCategory.entrySet()) {
-            List<CustomEnchant> enchants = entry.getValue();
-            if (enchants.isEmpty()) continue;
-            String catLabel = capitalize(entry.getKey()) + " (" + enchants.size() + ")";
-            JsonObject catSection = buildCollapsible(catLabel, true, "0xFF1A2A3A");
-            JsonArray catChildren = new JsonArray();
-            for (CustomEnchant e : enchants) {
-                catChildren.add(buildSpacer(2));
-                catChildren.add(buildProductCard(e));
-            }
-            catSection.add("widgets", catChildren);
-            sections.add(catSection);
-            sections.add(buildSpacer(3));
-        }
+
+        // Triggers
+        JsonObject triggers = buildCollapsible("Triggers \u2014 when an enchant activates", false, "0xFF1A2A3A");
+        JsonArray tRows = new JsonArray();
+        tRows.add(buildHint("While worn \u2014 active whenever the item is equipped; removed on unequip"));
+        tRows.add(buildHint("On hit taken \u2014 fires each time you take damage (subject to cooldown)"));
+        tRows.add(buildHint("Low health \u2014 fires when health crosses a threshold (e.g. below 3 hearts)"));
+        tRows.add(buildHint("  Configurable: any stat, above or below, any value"));
+        tRows.add(buildHint("Right-click \u2014 fires when you right-click while holding the item"));
+        tRows.add(buildHint("On damage dealt \u2014 fires each time you deal damage with the weapon"));
+        tRows.add(buildHint("On kill \u2014 fires when you kill an entity with the weapon"));
+        tRows.add(buildHint("Suit jump \u2014 fires when you jump while wearing a full enchanted suit"));
+        triggers.add("widgets", tRows);
+        sections.add(triggers);
+        sections.add(buildSpacer(3));
+
+        // Effects
+        JsonObject effects = buildCollapsible("Effects \u2014 what an enchant can do", false, "0xFF1A2A3A");
+        JsonArray eRows = new JsonArray();
+        eRows.add(buildHint("Stat boost \u2014 modify movement speed, max health, armor, attack damage, or any other attribute. Amount and scaling configurable per level."));
+        eRows.add(buildSpacer(2));
+        eRows.add(buildHint("Potion effect \u2014 apply any vanilla potion: resistance, speed, strength, regeneration, fire resistance, and more. Amplifier scales with level."));
+        eRows.add(buildSpacer(2));
+        eRows.add(buildHint("Absorption hearts \u2014 grant extra golden hearts (4 per level). Hearts are preserved on removal and regenerate out of combat."));
+        eRows.add(buildSpacer(2));
+        eRows.add(buildHint("Hand Laser \u2014 fire a particle beam from your hand. Damages the first entity in its path. Range and damage scale with level. Uses energy."));
+        eRows.add(buildSpacer(2));
+        eRows.add(buildHint("Thruster \u2014 launch yourself into the air. Thrust scales with level. Uses energy."));
+        eRows.add(buildSpacer(2));
+        eRows.add(buildHint("Morph Form \u2014 transform the player's appearance and apply a set of effects."));
+        effects.add("widgets", eRows);
+        sections.add(effects);
+        sections.add(buildSpacer(3));
+
+        // Durations
+        JsonObject durations = buildCollapsible("Durations \u2014 how long effects last", false, "0xFF1A2A3A");
+        JsonArray dRows = new JsonArray();
+        dRows.add(buildHint("Permanent \u2014 lasts until the item is unequipped. No expiry."));
+        dRows.add(buildHint("Timed \u2014 lasts a fixed number of seconds, then expires automatically."));
+        dRows.add(buildHint("Until next hit \u2014 ends the moment you take any damage."));
+        dRows.add(buildHint("Until full health or hit \u2014 ends at full health or on the next hit."));
+        dRows.add(buildHint("Until absorption gone \u2014 ends when your absorption hearts are consumed."));
+        durations.add("widgets", dRows);
+        sections.add(durations);
+        sections.add(buildSpacer(3));
+
+        // Slots
+        JsonObject slots = buildCollapsible("Slots \u2014 what items can carry an enchant", false, "0xFF1A2A3A");
+        JsonArray sRows = new JsonArray();
+        sRows.add(buildHint("Any armor \u2014 helmet, chestplate, leggings, or boots."));
+        sRows.add(buildHint("Specific armor piece \u2014 target one slot only (e.g. boots only)."));
+        sRows.add(buildHint("Weapon \u2014 swords, axes, or any specific weapon material."));
+        sRows.add(buildHint("Any item \u2014 leave the slot list empty to allow any item."));
+        slots.add("widgets", sRows);
+        sections.add(slots);
+        sections.add(buildSpacer(3));
+
+        // Stacking
+        JsonObject stacking = buildCollapsible("Stacking \u2014 multiple copies of the same enchant", false, "0xFF1A2A3A");
+        JsonArray stRows = new JsonArray();
+        stRows.add(buildHint("Highest \u2014 only the strongest copy counts. Extra pieces add nothing."));
+        stRows.add(buildHint("Sum \u2014 all copies add together. Two level-1 pieces act as level 2."));
+        stRows.add(buildHint("Exclusive \u2014 only the first piece found activates. Others are ignored."));
+        stacking.add("widgets", stRows);
+        sections.add(stacking);
+        sections.add(buildSpacer(3));
+
+        // Energy
+        JsonObject energy = buildCollapsible("Energy \u2014 resource pool for active effects", false, "0xFF1A2A3A");
+        JsonArray enRows = new JsonArray();
+        enRows.add(buildHint("Hand Laser and Thruster draw from a shared energy pool."));
+        enRows.add(buildHint("Pool capacity: 100. Regenerates at 8 per second passively."));
+        enRows.add(buildHint("Regen pauses while in combat (5 seconds after the last hit taken)."));
+        enRows.add(buildHint("If you activate an effect when empty, the action fails with a sound."));
+        energy.add("widgets", enRows);
+        sections.add(energy);
 
         JsonObject schema = buildScreenSchema("enchantforge:product_guide", "EnchantForge Guide", sections);
         sendSchema(player, schema);
         sendEvent(player, buildOpenScreenEvent("enchantforge:product_guide").toString());
-    }
-
-    private static JsonObject buildProductCard(CustomEnchant enchant) {
-        String levelRange = enchant.getMaxLevel() > 1
-                ? "I\u2013" + CustomEnchant.toRoman(enchant.getMaxLevel())
-                : "I";
-        JsonObject card = buildCollapsible(enchant.getDisplayName() + " " + levelRange, false, "0xFF111122");
-        JsonArray rows = new JsonArray();
-        rows.add(buildSpacer(2));
-        rows.add(buildHintRow("Slot", formatSlot(enchant.getApplicableTo())));
-        rows.add(buildHintRow("Activation", formatTrigger(enchant.getTrigger())));
-        EndCondition end = enchant.getEndCondition();
-        if (!(end instanceof NeverCondition)) {
-            rows.add(buildHintRow("Duration", formatDuration(end)));
-        }
-        if (enchant.hasCooldown()) {
-            rows.add(buildHintRow("Cooldown", (enchant.getCooldownTicks() / 20) + "s"));
-        }
-        String desc = enchant.resolveDescription(enchant.getMaxLevel());
-        if (!desc.isBlank()) {
-            rows.add(buildSpacer(2));
-            rows.add(buildWrappedHint(desc));
-        }
-        rows.add(buildSpacer(2));
-        card.add("widgets", rows);
-        return card;
-    }
-
-    private static String formatTrigger(EnchantTrigger trigger) {
-        if (trigger instanceof StatThresholdTrigger t) {
-            String stat = t.getStat().equals("health") ? "health" : t.getStat();
-            String cmp = t.getComparison().equals("below") ? "below" : "above";
-            String val;
-            if (t.getStat().equals("health")) {
-                double hearts = t.getValue() / 2.0;
-                val = (hearts == Math.floor(hearts) ? String.valueOf((int) hearts) : String.valueOf(hearts)) + " hearts";
-            } else {
-                val = String.valueOf(t.getValue());
-            }
-            return "Activates when " + stat + " is " + cmp + " " + val;
-        }
-        return switch (trigger.id()) {
-            case "on_equip"        -> "While equipped";
-            case "on_damage_taken" -> "Activates when you take damage";
-            case "on_deal_damage"  -> "Activates when you deal damage";
-            case "on_kill_entity"  -> "Activates when you kill an entity";
-            case "on_right_click"  -> "Right-click to activate";
-            case "on_suit_jump"    -> "Activates when you jump (suit)";
-            default                -> trigger.id();
-        };
-    }
-
-    private static String formatDuration(EndCondition end) {
-        return switch (end) {
-            case NeverCondition c               -> "Permanent";
-            case TimeCondition c               -> "Lasts " + (c.getEffectDurationTicks() / 20) + "s";
-            case DamagedCondition c            -> "Until next hit";
-            case FullHealthOrDamagedCondition c -> "Until full health or next hit";
-            case AbsorptionDepletedCondition c -> "Until absorption runs out";
-            default                            -> end.getDisplayLabel();
-        };
-    }
-
-    private static String formatSlot(List<String> applicableTo) {
-        if (applicableTo.isEmpty()) return "Any item";
-        if (applicableTo.contains("ARMOR")) return "Any armor";
-        List<String> readable = new ArrayList<>();
-        for (String s : applicableTo) {
-            readable.add(switch (s) {
-                case "_HELMET"     -> "helmets";
-                case "_CHESTPLATE" -> "chestplates";
-                case "_LEGGINGS"   -> "leggings";
-                case "_BOOTS"      -> "boots";
-                case "_SWORD"      -> "swords";
-                case "_AXE"        -> "axes";
-                default            -> s.toLowerCase(Locale.ROOT).replace("_", " ");
-            });
-        }
-        return String.join(", ", readable);
     }
 
     // ---- AI Manual ----
@@ -351,6 +309,10 @@ public final class VibeCraftUiBridge {
         schema.addProperty("version", 1);
         schema.addProperty("defaultPlugin", "enchantforge");
 
+        JsonObject panel = new JsonObject();
+        panel.addProperty("maxWidth", 700);
+        panel.addProperty("widthPercent", 0.82);
+
         JsonObject header = new JsonObject();
         header.addProperty("type", "text");
         header.addProperty("text", title);
@@ -369,7 +331,10 @@ public final class VibeCraftUiBridge {
 
         JsonObject screen = new JsonObject();
         screen.addProperty("id", screenId);
+        String pluginNamespace = screenId.contains(":") ? screenId.substring(0, screenId.indexOf(':')) : "enchantforge";
+        screen.addProperty("plugin", pluginNamespace);
         screen.addProperty("title", title);
+        screen.add("panel", panel);
         screen.add("widgets", widgets);
 
         JsonArray screens = new JsonArray();
@@ -381,6 +346,8 @@ public final class VibeCraftUiBridge {
     private static JsonObject buildCollapsible(String label, boolean open, String headerBg) {
         JsonObject c = new JsonObject();
         c.addProperty("type", "collapsible");
+        String id = label.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "_").replaceAll("^_|_$", "");
+        c.addProperty("id", id);
         c.addProperty("label", label);
         c.addProperty("open", open);
         c.addProperty("headerHeight", 16);
@@ -395,6 +362,7 @@ public final class VibeCraftUiBridge {
         JsonObject h = new JsonObject();
         h.addProperty("type", "hint");
         h.addProperty("text", text);
+        h.addProperty("wrap", true);
         return h;
     }
 

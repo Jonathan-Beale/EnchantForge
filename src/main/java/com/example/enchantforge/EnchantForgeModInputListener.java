@@ -34,12 +34,6 @@ public final class EnchantForgeModInputListener implements PluginMessageListener
             if (!obj.has("type")) return;
             String type = obj.get("type").getAsString();
 
-            if ("request_history".equals(type)) {
-                // Schema-driven UI: just open the catalog, filtering happens client-side
-                uiBridge.openEnchantCatalog(player, registry);
-                return;
-            }
-
             if ("message".equals(type) && obj.has("message")) {
                 handleMessage(player, obj.get("message").getAsString().trim());
             }

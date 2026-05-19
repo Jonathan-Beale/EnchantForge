@@ -13,6 +13,8 @@ public final class PlayerResourcePool {
 
     private final double max;
     private final double regenPerTick;
+    /** Bottom 5% is reserved for emergency triggers (fall guard, landing). */
+    private final double reserveFloor;
     private final Map<UUID, Double> pool = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastRegenAt = new ConcurrentHashMap<>();
     private Consumer<Player> onChanged = p -> {};
@@ -20,6 +22,7 @@ public final class PlayerResourcePool {
     public PlayerResourcePool(double max, double regenPerTick) {
         this.max = max;
         this.regenPerTick = regenPerTick;
+        this.reserveFloor = max * 0.05;
     }
 
     public double getMax() { return max; }
@@ -32,7 +35,24 @@ public final class PlayerResourcePool {
         return computeRegen(player.getUniqueId());
     }
 
+    /**
+     * Consumes energy for normal abilities. Fails if the remaining energy would
+     * drop below the 5% emergency reserve (kept for fall guard / landing).
+     */
     public boolean tryConsume(Player player, double cost) {
+        UUID id = player.getUniqueId();
+        double current = computeRegen(id);
+        if (current - cost < reserveFloor) return false;
+        pool.put(id, current - cost);
+        onChanged.accept(player);
+        return true;
+    }
+
+    /**
+     * Consumes energy for emergency triggers (fall guard, landing brakes).
+     * Bypasses the reserve floor so the system can always protect the player.
+     */
+    public boolean tryConsumeEmergency(Player player, double cost) {
         UUID id = player.getUniqueId();
         double current = computeRegen(id);
         if (current < cost) return false;

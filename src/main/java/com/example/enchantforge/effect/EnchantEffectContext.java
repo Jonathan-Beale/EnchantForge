@@ -7,8 +7,9 @@ public final class EnchantEffectContext {
 
     public record Key<T>(String id, Class<T> type) {}
 
-    public static final Key<Double> DEALT_DAMAGE = new Key<>("dealt_damage", Double.class);
-    public static final Key<String> TRIGGER_ID   = new Key<>("trigger_id",   String.class);
+    public static final Key<Double>  DEALT_DAMAGE  = new Key<>("dealt_damage",  Double.class);
+    public static final Key<String>  TRIGGER_ID    = new Key<>("trigger_id",    String.class);
+    public static final Key<Integer> CHARGE_TICKS  = new Key<>("charge_ticks",  Integer.class);
     public static final EnchantEffectContext NONE = new EnchantEffectContext(Map.of());
 
     private final Map<String, Object> data;

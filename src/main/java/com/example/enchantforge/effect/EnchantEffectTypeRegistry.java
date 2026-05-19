@@ -27,6 +27,8 @@ public final class EnchantEffectTypeRegistry {
         register("thruster", (key, section) -> ThrusterEffect.fromYaml(section));
         register("hand_laser", (key, section) -> HandLaserEffect.fromYaml(section));
         register("friday_ai", (key, section) -> FridayAiEffect.INSTANCE);
+        register("raycast_damage", RaycastDamageEffect::fromYaml);
+        register("velocity_impulse", VelocityImpulseEffect::fromYaml);
     }
 
     private EnchantEffectTypeRegistry() {}
