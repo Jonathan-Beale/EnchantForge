@@ -29,6 +29,7 @@ public final class EnchantEffectTypeRegistry {
         register("friday_ai", (key, section) -> FridayAiEffect.fromYaml(section));
         register("raycast_damage", RaycastDamageEffect::fromYaml);
         register("velocity_impulse", VelocityImpulseEffect::fromYaml);
+        register("robot_companion", (key, section) -> RobotCompanionEffect.fromYaml(section));
     }
 
     private EnchantEffectTypeRegistry() {}

@@ -1,0 +1,20 @@
+key: robot_companion
+displayName: "Robot Companion"
+maxLevel: 1
+
+applicableTo:
+  - ARMOR
+
+trigger:
+  type: on_equip
+
+effect:
+  style: robot_companion
+
+duration:
+  type: never
+
+cooldown: 0
+stackBehavior: exclusive
+
+description: "Summons R.O.B.O.T. — an Iron Golem companion that follows and protects you."

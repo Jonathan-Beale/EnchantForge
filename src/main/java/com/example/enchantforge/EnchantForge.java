@@ -60,6 +60,7 @@ public class EnchantForge extends JavaPlugin {
         HandLaserEffect.init(energy);
         RaycastDamageEffect.init(energy);
         VelocityImpulseEffect.init(energy);
+        com.example.enchantforge.effect.RobotCompanionManager.init(this);
 
         getServer().getMessenger().registerOutgoingPluginChannel(this, "vibecraft:events");
         uiBridge = new VibeCraftUiBridge(this);
@@ -133,6 +134,7 @@ public class EnchantForge extends JavaPlugin {
         getServer().getMessenger().unregisterOutgoingPluginChannel(this, "vibecraft:events");
         getServer().getMessenger().unregisterIncomingPluginChannel(this, "vibecraft:input");
         if (resourcePackManager != null) resourcePackManager.stopHttpServer();
+        com.example.enchantforge.effect.RobotCompanionManager.shutdown();
         getLogger().info("EnchantForge disabled!");
     }
 
@@ -176,7 +178,7 @@ public class EnchantForge extends JavaPlugin {
                                         "steadfast.yml", "soulfeast.yml", "vampiric.yml",
                                         "shadow_veil.yml", "feral_form.yml", "eye_laser.yml",
                                         "thruster_boots.yml", "hand_laser.yml",
-                                        "ai_interface.yml"}) {
+                                        "ai_interface.yml", "robot_companion.yml"}) {
             InputStream bundled = getResource("enchants/" + name);
             if (bundled == null) continue;
             File deployed = new File(enchantsDir, name);
