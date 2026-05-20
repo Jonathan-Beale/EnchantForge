@@ -12,6 +12,8 @@ import org.bukkit.Sound;
 import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
 import org.bukkit.boss.BossBar;
+import org.bukkit.entity.ArmorStand;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Monster;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -65,6 +67,7 @@ public class SuitListener implements Listener {
     private static final TextColor FRIDAY_COLOR  = TextColor.color(0x00CCFF);
     private static final long   DOUBLE_JUMP_WINDOW_MS  = 400L;
     private static final double FLIGHT_ENERGY_PER_TICK = 40.0;
+    private static final double HOVER_ENERGY_PER_TICK  = 10.0;
     private static final double FLIGHT_SPEED            = 0.25;
     private static final double SPRINT_FLIGHT_SPEED     = 0.6;
     private static final double FLIGHT_VERTICAL_SPEED   = 0.25;
@@ -78,7 +81,6 @@ public class SuitListener implements Listener {
         this.energy       = energy;
         instance = this;
         energy.onChanged(this::onEnergyChanged);
-        ensureGlowTeam();
         // 5-tick poll: boss bar, Friday audio, mob glow pulse
         plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 1L, 5L);
         // 1-tick poll: fall guard + flight physics need per-tick precision
@@ -152,7 +154,7 @@ public class SuitListener implements Listener {
             // Clear highlighted mobs
             JsonObject clearGlow = new JsonObject();
             clearGlow.addProperty("type", "ef_highlight_entities");
-            clearGlow.add("entities", new JsonArray());
+            clearGlow.add("groups", new JsonArray());
             sendEvent(p, clearGlow.toString());
             // Clear hostile direction indicator
             JsonObject clearDir = new JsonObject();
@@ -178,35 +180,48 @@ public class SuitListener implements Listener {
         updateAllMobGlow();
     }
 
-    // ---- Mob ESP — per-player via VibeCraftMod (hostile-only, pulsed) ----
+    // ---- Mob ESP — per-player via VibeCraftMod ----
 
     /**
-     * Sends each suited+mod player the set of hostile entity IDs to highlight.
-     * 4 s ON / 16 s OFF pulse (20 s cycle).  Players without the mod receive nothing.
+     * Sends each suited+mod player entity highlights: hostiles red, neutrals aqua.
+     * Always on (no pulse). Players without the mod receive nothing.
      */
     private void updateAllMobGlow() {
-        boolean pulseOn = !activeSuit.isEmpty() && (System.currentTimeMillis() % 20000L) < 4000L;
+        if (activeSuit.isEmpty()) return;
 
         for (UUID id : activeSuit) {
             Player p = Bukkit.getPlayer(id);
             if (p == null || !p.isOnline() || !hasMod(p)) continue;
 
-            JsonArray entities = new JsonArray();
-            if (pulseOn) {
-                double radius = playerGlowRadius.getOrDefault(id, 0.0);
-                if (radius > 0) {
-                    double radiusSq = radius * radius;
-                    for (Monster mob : p.getWorld().getEntitiesByClass(Monster.class)) {
-                        if (mob.getLocation().distanceSquared(p.getLocation()) <= radiusSq) {
-                            entities.add(mob.getEntityId());
-                        }
-                    }
+            double radius = playerGlowRadius.getOrDefault(id, 0.0);
+            JsonArray hostile = new JsonArray();
+            JsonArray neutral = new JsonArray();
+
+            if (radius > 0) {
+                double radiusSq = radius * radius;
+                for (LivingEntity mob : p.getWorld().getLivingEntities()) {
+                    if (mob instanceof Player || mob instanceof ArmorStand) continue;
+                    if (mob.getLocation().distanceSquared(p.getLocation()) > radiusSq) continue;
+                    if (mob instanceof Monster) hostile.add(mob.getEntityId());
+                    else                        neutral.add(mob.getEntityId());
                 }
             }
 
+            JsonObject redGroup = new JsonObject();
+            redGroup.addProperty("color", "red");
+            redGroup.add("entities", hostile);
+
+            JsonObject aquaGroup = new JsonObject();
+            aquaGroup.addProperty("color", "aqua");
+            aquaGroup.add("entities", neutral);
+
+            JsonArray groups = new JsonArray();
+            groups.add(redGroup);
+            groups.add(aquaGroup);
+
             JsonObject msg = new JsonObject();
             msg.addProperty("type", "ef_highlight_entities");
-            msg.add("entities", entities);
+            msg.add("groups", groups);
             sendEvent(p, msg.toString());
         }
     }
@@ -316,8 +331,14 @@ public class SuitListener implements Listener {
             return;
         }
 
-        // Drain energy; cut flight if the reserve is hit
-        if (!energy.tryConsume(player, FLIGHT_ENERGY_PER_TICK)) {
+        // Drain energy — hovering (no inputs) costs less than active flight
+        var inputCheck = player.getCurrentInput();
+        boolean hovering = !player.isSprinting()
+                && !inputCheck.isForward() && !inputCheck.isBackward()
+                && !inputCheck.isLeft()    && !inputCheck.isRight()
+                && !inputCheck.isJump()    && !inputCheck.isSneak();
+        double energyCost = hovering ? HOVER_ENERGY_PER_TICK : FLIGHT_ENERGY_PER_TICK;
+        if (!energy.tryConsume(player, energyCost)) {
             endFlight(player);
             if (activeSuit.contains(uid)) friday(player, FridayLine.POWER_CRITICAL);
             return;

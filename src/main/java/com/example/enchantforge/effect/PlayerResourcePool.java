@@ -70,7 +70,10 @@ public final class PlayerResourcePool {
         double current = pool.getOrDefault(id, max);
         if (current >= max) return max;
         long now = System.currentTimeMillis();
-        long last = lastRegenAt.getOrDefault(id, now);
+        // computeIfAbsent seeds the timer on first call below max so elapsedTicks
+        // can grow on subsequent calls; without this, getOrDefault(id, now) always
+        // returns the current instant, keeping elapsedTicks at 0 forever.
+        long last = lastRegenAt.computeIfAbsent(id, k -> now);
         long elapsedTicks = (now - last) / MS_PER_TICK;
         if (elapsedTicks <= 0) return current;
         double regened = Math.min(max, current + elapsedTicks * regenPerTick);
