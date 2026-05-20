@@ -55,7 +55,7 @@ public class EnchantForge extends JavaPlugin {
         tracker = new ActiveEffectTracker();
         combatTracker = new CombatTracker();
         enchantIndex = new PlayerEnchantIndex();
-        energy = new PlayerResourcePool(5000.0, 20.0);
+        energy = new PlayerResourcePool(5000.0, 2000.0);
         ThrusterEffect.init(energy);
         HandLaserEffect.init(energy);
         RaycastDamageEffect.init(energy);

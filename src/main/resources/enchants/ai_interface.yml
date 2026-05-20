@@ -24,6 +24,7 @@ trigger:
 
 effect:
   style: friday_ai
+  glowRadius: 32.0
 
 duration:
   type: never
@@ -31,5 +32,5 @@ duration:
 cooldown: 0
 stackBehavior: HIGHEST
 displayAmountPerLevel: 1.0
-description: "Activates F.R.I.D.A.Y. — suit energy HUD, fall protection, tactical audio alerts"
+description: "Activates F.R.I.D.A.Y. — suit energy HUD, fall protection, tactical audio alerts, mob detection"
 

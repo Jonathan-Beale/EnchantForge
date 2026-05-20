@@ -2,6 +2,13 @@
 
 ## Checklist
 
+- [] Thruster Boots: Fix flight bug (player sometimes enters creative mode style flight rather than thrusters deactivating)
+- [] Thruster Boots: Add a sprint-flight ability when the user holds sprint in flight, we want them to enter swim mode and move wherever they are looking (with thrusters)
+- [] Thruster Boots: After boot activation and before landing a single jump should activate a low energy-use hover mode, another space should begin flying again
+- [] AI Interface: Add outlines to nearby entities within a certain radius, even those obscured from normal vision
+- [] AI Interface: Give a warning/indicator when hostile mobs are approaching from the back (out of line of sight)
+
+
 - [x] [§A Effect Mechanic Generalization](#a--effect-mechanic-generalization) — `RaycastDamageEffect`, `VelocityImpulseEffect`; delete `HandLaserEffect`, `ThrusterEffect`
 - [x] [§B Visual / Mechanical Separation](#b--visual--mechanical-separation) — `VisualSystem`, cue points, layer registry, YAML `visuals:` block
 - [ ] [§C Optional](#c--optional--low-priority) — registry singletons, `StackBehavior.AVERAGE`
