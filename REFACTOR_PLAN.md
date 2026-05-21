@@ -3,10 +3,10 @@
 ## Checklist
 
 - [ ] Thruster Boots: Fix flight bug (player sometimes enters creative-mode-style flight rather than thrusters deactivating)
-- [ ] Thruster Boots: Add a sprint-flight ability when the user holds sprint in flight, we want them to enter swim mode and move wherever they are looking (with thrusters)
+- [x] Thruster Boots: Add a sprint-flight ability when the user holds sprint in flight, we want them to enter swim mode and move wherever they are looking (with thrusters)
 - [ ] Thruster Boots: After boot activation and before landing, a single jump should activate a low energy-use hover mode; another space should begin flying again
-- [ ] AI Interface: Add outlines to nearby entities within a certain radius, even those obscured from normal vision
-- [ ] AI Interface: Give a warning/indicator when hostile mobs are approaching from the back (out of line of sight)
+- [x] AI Interface: Add outlines to nearby entities within a certain radius, even those obscured from normal vision
+- [x] AI Interface: Give a warning/indicator when hostile mobs are approaching from the back (out of line of sight)
 
 - [x] [§A Effect Mechanic Generalization](#a--effect-mechanic-generalization) — `RaycastDamageEffect`, `VelocityImpulseEffect` created and registered; YAMLs migrated
 - [x] [§B Visual / Mechanical Separation](#b--visual--mechanical-separation) — `VisualSystem`, cue points, layer registry, YAML `visuals:` block
@@ -31,12 +31,13 @@ in `EnchantEffectTypeRegistry` (`hand_laser` and `thruster` style strings). They
 deleted. The migration plan called for deleting them after confirming the new YAMLs work; that
 deletion step is still pending.
 
-Additionally, the `on_suit_jump` trigger is currently a guard-only trigger: `SuitListener`
-checks `enchantIndex.getByTrigger(uid, "on_suit_jump").isEmpty()` to know whether to run flight
-logic, but does not dispatch the enchant's `apply()` method. The `velocity_impulse` effect in
-`thruster_boots.yml` is therefore never called — `SuitListener` applies flight physics directly
-via `setVelocity` and `setAllowFlight`. If the intent is to drive thruster behavior through the
-effect system (energy cost from YAML, direction from YAML), the dispatch path needs to be wired.
+The `on_suit_jump` trigger is a guard-only trigger by design: `SuitListener` checks
+`enchantIndex.getByTrigger(uid, "on_suit_jump").isEmpty()` to know whether the player has thruster
+boots equipped, then applies flight physics directly via `setVelocity` and `setAllowFlight`.
+The `effect: style: velocity_impulse` block in `thruster_boots.yml` is therefore unused dead config
+for this enchant — the boots work correctly through SuitListener's bespoke flight system.
+Similarly, `ThrusterEffect.java` (style `thruster`) exists and is registered but is not currently
+called by SuitListener. Both can be cleaned up if the bespoke flight model is considered final.
 
 ---
 
