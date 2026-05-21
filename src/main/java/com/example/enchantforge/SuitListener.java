@@ -196,7 +196,7 @@ public class SuitListener implements Listener {
 
         for (UUID id : activeSuit) {
             Player p = Bukkit.getPlayer(id);
-            if (p == null || !p.isOnline() || !hasMod(p)) continue;
+            if (p == null || !p.isOnline()) continue;
 
             double radius = playerGlowRadius.getOrDefault(id, 0.0);
             JsonArray hostile = new JsonArray();
@@ -280,6 +280,7 @@ public class SuitListener implements Listener {
 
     private void startFlight(Player player) {
         if (!flightActive.add(player.getUniqueId())) return;
+        player.addScoreboardTag("thruster_flying");
         grantThrusterFlight(player);
         player.setFallDistance(0);
         player.playSound(player.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 0.8f, 1.3f);
@@ -292,6 +293,7 @@ public class SuitListener implements Listener {
     private void endFlight(Player player) {
         if (!flightActive.remove(player.getUniqueId())) return;
         sprintFlyMode.remove(player.getUniqueId());
+        player.removeScoreboardTag("thruster_flying");
         player.setGliding(false);
         player.setFlying(false);
         revokeThrusterFlight(player);
@@ -384,11 +386,20 @@ public class SuitListener implements Listener {
         player.setVelocity(new Vector(vx, vy, vz));
         player.setFallDistance(0);
 
-        // Subtle exhaust trail every 3 ticks
+        // Per-boot exhaust trail every 3 ticks, denser in sprint-fly
         if (plugin.getServer().getCurrentTick() % 3 == 0) {
             Location feet = player.getLocation();
-            player.getWorld().spawnParticle(Particle.FLAME, feet, 2, 0.10, 0.04, 0.10, 0.05);
-            player.getWorld().spawnParticle(Particle.SMOKE, feet, 1, 0.12, 0.04, 0.12, 0.03);
+            Vector look = feet.getDirection();
+            Vector side = look.clone().crossProduct(new Vector(0, 1, 0));
+            if (side.lengthSquared() < 0.001) side = look.clone().crossProduct(new Vector(1, 0, 0));
+            side.normalize().multiply(0.22);
+            int count = isSprintFly ? 6 : 2;
+            for (Location foot : new Location[]{feet.clone().add(side), feet.clone().subtract(side)}) {
+                player.getWorld().spawnParticle(Particle.DUST, foot, count, 0.06, 0.04, 0.06, 0,
+                        new Particle.DustOptions(org.bukkit.Color.fromRGB(255, 240, 180), 1.8f));
+                player.getWorld().spawnParticle(Particle.DUST, foot, count, 0.08, 0.05, 0.08, 0,
+                        new Particle.DustOptions(org.bukkit.Color.fromRGB(255, 100, 0), 1.2f));
+            }
         }
     }
 
@@ -551,6 +562,7 @@ public class SuitListener implements Listener {
         UUID id = event.getPlayer().getUniqueId();
         flightActive.remove(id);
         sprintFlyMode.remove(id);
+        event.getPlayer().removeScoreboardTag("thruster_flying");
         deactivateSuit(id);
         prevJump.remove(id);
         lastJumpPressMs.remove(id);

@@ -25,20 +25,38 @@ effect:
   style: velocity_impulse
   direction: wasd_or_up
   powerPerLevel: 0.7
-  energyCost: 18.0
+  energyCost: 4.0
 
   visuals:
     on_fire:
       - type: burst
-        particle: FLAME
-        count: 12
-        radius: 0.15
-        speed: 0.09
+        particle: FLASH
+        count: 2
+        radius: 0.05
+        speed: 0.0
+      - type: burst
+        particle: DUST
+        count: 8
+        radius: 0.18
+        speed: 0.0
+        color: "255, 240, 180"
+        size: 3.0
+      - type: burst
+        particle: DUST
+        count: 14
+        radius: 0.28
+        speed: 0.0
+        color: "255, 100, 0"
+        size: 2.0
       - type: burst
         particle: SMOKE
         count: 8
         radius: 0.2
         speed: 0.03
+      - type: sound
+        sound: ENTITY_GUARDIAN_ATTACK
+        volume: 0.8
+        pitch: 1.6
       - type: sound
         sound: ENTITY_FIREWORK_ROCKET_LAUNCH
         volume: 0.85

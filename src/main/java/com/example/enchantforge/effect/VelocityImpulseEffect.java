@@ -2,6 +2,7 @@ package com.example.enchantforge.effect;
 
 import com.example.enchantforge.effect.visual.CuePoint;
 import com.example.enchantforge.effect.visual.VisualSystem;
+import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
@@ -76,6 +77,23 @@ public final class VelocityImpulseEffect implements EnchantEffect {
         player.setFallDistance(0);
 
         visuals.play(CuePoint.ON_FIRE, player, context);
+
+        if (maxCharge) {
+            Location feet = player.getLocation();
+            // Structured shockwave ring at tier-3
+            for (int i = 0; i < 20; i++) {
+                double a = i * Math.PI * 2.0 / 20;
+                Location rim = feet.clone().add(Math.cos(a) * 0.7, 0.05, Math.sin(a) * 0.7);
+                player.getWorld().spawnParticle(Particle.DUST, rim, 1, 0, 0, 0, 0,
+                        new Particle.DustOptions(Color.fromRGB(255, 240, 180), 2.0f));
+                player.getWorld().spawnParticle(Particle.DUST, rim, 1, 0.04, 0.02, 0.04, 0,
+                        new Particle.DustOptions(Color.fromRGB(255, 100, 0), 1.4f));
+            }
+            player.getWorld().spawnParticle(Particle.FLASH, feet, 3, 0.1, 0.05, 0.1, 0);
+            player.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, feet, 2, 0.2, 0.1, 0.2, 0);
+            player.getWorld().playSound(feet, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 0.6f, 1.6f);
+            player.getWorld().playSound(feet, Sound.ENTITY_GENERIC_EXPLODE, 0.5f, 1.6f);
+        }
     }
 
     /**
@@ -98,8 +116,17 @@ public final class VelocityImpulseEffect implements EnchantEffect {
         player.setFallDistance(0);
 
         Location feet = player.getLocation();
-        player.getWorld().spawnParticle(Particle.FLAME, feet, 3, 0.10, 0.04, 0.10, 0.07);
-        player.getWorld().spawnParticle(Particle.SMOKE, feet, 2, 0.12, 0.04, 0.12, 0.03);
+        Vector look = feet.getDirection();
+        Vector side = look.clone().crossProduct(new Vector(0, 1, 0));
+        if (side.lengthSquared() < 0.001) side = look.clone().crossProduct(new Vector(1, 0, 0));
+        side.normalize().multiply(0.22);
+        int count = player.isSprinting() ? 5 : 2;
+        for (Location foot : new Location[]{feet.clone().add(side), feet.clone().subtract(side)}) {
+            player.getWorld().spawnParticle(Particle.DUST, foot, count, 0.06, 0.04, 0.06, 0,
+                    new Particle.DustOptions(Color.fromRGB(255, 240, 180), 1.8f));
+            player.getWorld().spawnParticle(Particle.DUST, foot, count, 0.08, 0.05, 0.08, 0,
+                    new Particle.DustOptions(Color.fromRGB(255, 100, 0), 1.2f));
+        }
         return true;
     }
 
