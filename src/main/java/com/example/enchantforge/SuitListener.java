@@ -62,6 +62,8 @@ public class SuitListener implements Listener {
     private final Set<UUID> thrusterFlightGranted = new HashSet<>();
     /** Previous-tick jump state, for rising/falling edge detection. */
     private final Map<UUID, Boolean> prevJump = new HashMap<>();
+    /** Players currently in sprint-fly mode (elytra pose active); hysteresis prevents isSprinting() flicker. */
+    private final Set<UUID> sprintFlyMode = new HashSet<>();
 
     // ---- Constants ----
 
@@ -289,6 +291,7 @@ public class SuitListener implements Listener {
 
     private void endFlight(Player player) {
         if (!flightActive.remove(player.getUniqueId())) return;
+        sprintFlyMode.remove(player.getUniqueId());
         player.setGliding(false);
         player.setFlying(false);
         revokeThrusterFlight(player);
@@ -341,9 +344,18 @@ public class SuitListener implements Listener {
         double yawRad   = Math.toRadians(player.getLocation().getYaw());
         double pitchRad = Math.toRadians(player.getLocation().getPitch());
 
+        // Sprint-fly mode: enter when actually sprinting + forward, exit only when forward released.
+        // Never re-check isSprinting() while already active — setGliding(true) clears the sprint
+        // flag server-side, which would otherwise create a jitter loop.
+        boolean wasSprintFly = sprintFlyMode.contains(uid);
+        boolean isSprintFly  = wasSprintFly ? input.isForward()
+                                             : (player.isSprinting() && input.isForward());
+        if (isSprintFly) sprintFlyMode.add(uid); else sprintFlyMode.remove(uid);
+        if (isSprintFly != wasSprintFly) player.setGliding(isSprintFly);
+
         double vx, vy, vz;
 
-        if (player.isSprinting() && input.isForward()) {
+        if (isSprintFly) {
             // Sprint-fly: move in exact look direction (pitch included)
             double s = SPRINT_FLIGHT_SPEED;
             vx = -Math.sin(yawRad) * Math.cos(pitchRad) * s;
@@ -352,7 +364,7 @@ public class SuitListener implements Listener {
         } else {
             // Standard WASD horizontal movement
             double fx = -Math.sin(yawRad), fz =  Math.cos(yawRad);   // forward unit vector
-            double rx = -Math.cos(yawRad), rz = -Math.sin(yawRad);  // right unit vector (West when facing South)
+            double rx = -Math.cos(yawRad), rz = -Math.sin(yawRad);   // right unit vector (West when facing South)
             double hx = 0, hz = 0;
             if (input.isForward())  { hx += fx; hz += fz; }
             if (input.isBackward()) { hx -= fx; hz -= fz; }
@@ -371,7 +383,6 @@ public class SuitListener implements Listener {
 
         player.setVelocity(new Vector(vx, vy, vz));
         player.setFallDistance(0);
-        player.setGliding(player.isSprinting() && input.isForward());
 
         // Subtle exhaust trail every 3 ticks
         if (plugin.getServer().getCurrentTick() % 3 == 0) {
@@ -526,19 +537,20 @@ public class SuitListener implements Listener {
         else startFlight(player);
     }
 
-    /** We manage gliding state per-tick in applyFlightTick; suppress vanilla interference. */
+    /** Cancel vanilla glide-state changes that contradict our sprint-fly mode. */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onToggleGlide(EntityToggleGlideEvent event) {
         if (!(event.getEntity() instanceof Player p)) return;
-        if (flightActive.contains(p.getUniqueId())) {
-            event.setCancelled(true);
-        }
+        if (!flightActive.contains(p.getUniqueId())) return;
+        boolean wantGliding = sprintFlyMode.contains(p.getUniqueId());
+        if (event.isGliding() != wantGliding) event.setCancelled(true);
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         UUID id = event.getPlayer().getUniqueId();
         flightActive.remove(id);
+        sprintFlyMode.remove(id);
         deactivateSuit(id);
         prevJump.remove(id);
         lastJumpPressMs.remove(id);
