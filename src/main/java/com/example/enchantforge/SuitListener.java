@@ -20,6 +20,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityToggleGlideEvent;
 import org.bukkit.event.player.PlayerInputEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.Plugin;
@@ -278,6 +279,7 @@ public class SuitListener implements Listener {
     private void startFlight(Player player) {
         if (!flightActive.add(player.getUniqueId())) return;
         grantThrusterFlight(player);
+        player.setGliding(true);
         player.setFallDistance(0);
         player.playSound(player.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 0.8f, 1.3f);
         player.playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 0.5f, 1.6f);
@@ -288,6 +290,7 @@ public class SuitListener implements Listener {
 
     private void endFlight(Player player) {
         if (!flightActive.remove(player.getUniqueId())) return;
+        player.setGliding(false);
         player.setFlying(false);
         revokeThrusterFlight(player);
         player.playSound(player.getLocation(), Sound.ENTITY_BLAZE_SHOOT, 0.6f, 0.8f);
@@ -369,6 +372,7 @@ public class SuitListener implements Listener {
 
         player.setVelocity(new Vector(vx, vy, vz));
         player.setFallDistance(0);
+        if (!player.isGliding()) player.setGliding(true);
 
         // Subtle exhaust trail every 3 ticks
         if (plugin.getServer().getCurrentTick() % 3 == 0) {
@@ -521,6 +525,15 @@ public class SuitListener implements Listener {
 
         if (flightActive.contains(uid)) endFlight(player);
         else startFlight(player);
+    }
+
+    /** Prevent the server from resetting the elytra pose for our flight players. */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onToggleGlide(EntityToggleGlideEvent event) {
+        if (!(event.getEntity() instanceof Player p)) return;
+        if (flightActive.contains(p.getUniqueId()) && !event.isGliding()) {
+            event.setCancelled(true);
+        }
     }
 
     @EventHandler
