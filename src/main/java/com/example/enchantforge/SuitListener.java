@@ -1,6 +1,8 @@
 package com.example.enchantforge;
 
 import com.example.enchantforge.effect.PlayerResourcePool;
+import com.example.enchantforge.effect.ResourcePoolRegistry;
+import com.example.enchantforge.effect.SuitFlightEffect;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import net.kyori.adventure.text.Component;
@@ -41,7 +43,6 @@ public class SuitListener implements Listener {
 
     private final Plugin plugin;
     private final PlayerEnchantIndex enchantIndex;
-    private final PlayerResourcePool energy;
 
     // ---- AI Interface helmet state ----
 
@@ -68,25 +69,32 @@ public class SuitListener implements Listener {
     // ---- Constants ----
 
     private static final TextColor FRIDAY_COLOR  = TextColor.color(0x00CCFF);
-    private static final long   DOUBLE_JUMP_WINDOW_MS  = 400L;
-    private static final double FLIGHT_ENERGY_PER_TICK = 40.0;
-    private static final double HOVER_ENERGY_PER_TICK  = 10.0;
-    private static final double FLIGHT_SPEED            = 0.25;
-    private static final double SPRINT_FLIGHT_SPEED     = 0.6;
-    private static final double FLIGHT_VERTICAL_SPEED   = 0.25;
 
     // -------------------------------------------------------------------------
 
-    public SuitListener(Plugin plugin, PlayerEnchantIndex enchantIndex, PlayerResourcePool energy) {
+    public SuitListener(Plugin plugin, PlayerEnchantIndex enchantIndex) {
         this.plugin       = plugin;
         this.enchantIndex = enchantIndex;
-        this.energy       = energy;
         instance = this;
-        energy.onChanged(this::onEnergyChanged);
+        ResourcePoolRegistry.all().forEach(p -> p.addOnChanged(this::onEnergyChanged));
         // 5-tick poll: boss bar, Friday audio, mob glow pulse
         plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 1L, 5L);
         // 1-tick poll: fall guard + flight physics need per-tick precision
         plugin.getServer().getScheduler().runTaskTimer(plugin, this::fallGuardTick, 1L, 1L);
+    }
+
+    // ---- Helpers ----
+
+    private SuitFlightEffect getSuitFlightEffect(Player player) {
+        for (CustomEnchant e : enchantIndex.getByTrigger(player.getUniqueId(), "on_suit_jump")) {
+            if (e.getEffect() instanceof SuitFlightEffect sfe) return sfe;
+        }
+        return null;
+    }
+
+    private PlayerResourcePool poolFor(Player player) {
+        SuitFlightEffect sfe = getSuitFlightEffect(player);
+        return sfe != null ? sfe.getPool() : ResourcePoolRegistry.get("energy");
     }
 
     // ---- Suit on/off (called by FridayAiEffect) ----
@@ -97,7 +105,8 @@ public class SuitListener implements Listener {
         }
         playerGlowRadius.put(player.getUniqueId(), glowRadius);
         BossBar bar = Bukkit.createBossBar("⚡  F.R.I.D.A.Y.", BarColor.BLUE, BarStyle.SEGMENTED_20);
-        bar.setProgress(energy.get(player) / energy.getMax());
+        PlayerResourcePool p = poolFor(player);
+        bar.setProgress(p.get(player) / p.getEffectiveMax(player.getUniqueId()));
         bar.addPlayer(player);
         bossBars.put(player.getUniqueId(), bar);
         sendHostileIndicatorSchema(player);
@@ -288,6 +297,8 @@ public class SuitListener implements Listener {
         if (activeSuit.contains(player.getUniqueId())) {
             player.sendActionBar(Component.text("[ F.R.I.D.A.Y. ] Flight systems engaged.").color(FRIDAY_COLOR));
         }
+        SuitFlightEffect sfe = getSuitFlightEffect(player);
+        if (sfe != null) sfe.playEngageVisuals(player);
     }
 
     private void endFlight(Player player) {
@@ -329,78 +340,19 @@ public class SuitListener implements Listener {
             return;
         }
 
-        // Drain energy — hovering (no inputs) costs less than active flight
-        var inputCheck = player.getCurrentInput();
-        boolean hovering = !player.isSprinting()
-                && !inputCheck.isForward() && !inputCheck.isBackward()
-                && !inputCheck.isLeft()    && !inputCheck.isRight()
-                && !inputCheck.isJump()    && !inputCheck.isSneak();
-        double energyCost = hovering ? HOVER_ENERGY_PER_TICK : FLIGHT_ENERGY_PER_TICK;
-        if (!energy.tryConsume(player, energyCost)) {
+        SuitFlightEffect sfe = getSuitFlightEffect(player);
+        if (sfe == null) { endFlight(player); return; }
+        boolean wasSprintFly = sprintFlyMode.contains(uid);
+        SuitFlightEffect.TickResult result = sfe.tickFlight(player, wasSprintFly);
+        if (!result.alive()) {
             endFlight(player);
             if (activeSuit.contains(uid)) friday(player, FridayLine.POWER_CRITICAL);
             return;
         }
-
-        var input   = player.getCurrentInput();
-        double yawRad   = Math.toRadians(player.getLocation().getYaw());
-        double pitchRad = Math.toRadians(player.getLocation().getPitch());
-
-        // Sprint-fly mode: enter when actually sprinting + forward, exit only when forward released.
-        // Never re-check isSprinting() while already active — setGliding(true) clears the sprint
-        // flag server-side, which would otherwise create a jitter loop.
-        boolean wasSprintFly = sprintFlyMode.contains(uid);
-        boolean isSprintFly  = wasSprintFly ? input.isForward()
-                                             : (player.isSprinting() && input.isForward());
+        boolean isSprintFly = result.sprintFly();
         if (isSprintFly) sprintFlyMode.add(uid); else sprintFlyMode.remove(uid);
         if (isSprintFly != wasSprintFly) player.setGliding(isSprintFly);
-
-        double vx, vy, vz;
-
-        if (isSprintFly) {
-            // Sprint-fly: move in exact look direction (pitch included)
-            double s = SPRINT_FLIGHT_SPEED;
-            vx = -Math.sin(yawRad) * Math.cos(pitchRad) * s;
-            vy = -Math.sin(pitchRad) * s;
-            vz =  Math.cos(yawRad)  * Math.cos(pitchRad) * s;
-        } else {
-            // Standard WASD horizontal movement
-            double fx = -Math.sin(yawRad), fz =  Math.cos(yawRad);   // forward unit vector
-            double rx = -Math.cos(yawRad), rz = -Math.sin(yawRad);   // right unit vector (West when facing South)
-            double hx = 0, hz = 0;
-            if (input.isForward())  { hx += fx; hz += fz; }
-            if (input.isBackward()) { hx -= fx; hz -= fz; }
-            if (input.isRight())    { hx += rx; hz += rz; }
-            if (input.isLeft())     { hx -= rx; hz -= rz; }
-            double len = Math.sqrt(hx * hx + hz * hz);
-            if (len > 0.001) { hx = hx / len * FLIGHT_SPEED; hz = hz / len * FLIGHT_SPEED; }
-            vx = hx;
-            vz = hz;
-
-            // Vertical: space = up, sneak = down, neither = hold altitude
-            if (input.isJump())        vy =  FLIGHT_VERTICAL_SPEED;
-            else if (input.isSneak())  vy = -FLIGHT_VERTICAL_SPEED;
-            else                       vy =  0.0;
-        }
-
-        player.setVelocity(new Vector(vx, vy, vz));
-        player.setFallDistance(0);
-
-        // Per-boot exhaust trail every 3 ticks, denser in sprint-fly
-        if (plugin.getServer().getCurrentTick() % 3 == 0) {
-            Location feet = player.getLocation();
-            Vector look = feet.getDirection();
-            Vector side = look.clone().crossProduct(new Vector(0, 1, 0));
-            if (side.lengthSquared() < 0.001) side = look.clone().crossProduct(new Vector(1, 0, 0));
-            side.normalize().multiply(0.22);
-            int count = isSprintFly ? 6 : 2;
-            for (Location foot : new Location[]{feet.clone().add(side), feet.clone().subtract(side)}) {
-                player.getWorld().spawnParticle(Particle.DUST, foot, count, 0.06, 0.04, 0.06, 0,
-                        new Particle.DustOptions(org.bukkit.Color.fromRGB(255, 240, 180), 1.8f));
-                player.getWorld().spawnParticle(Particle.DUST, foot, count, 0.08, 0.05, 0.08, 0,
-                        new Particle.DustOptions(org.bukkit.Color.fromRGB(255, 100, 0), 1.2f));
-            }
-        }
+        updateBossBar(player);
     }
 
     // ---- Boss bar / energy ----
@@ -412,7 +364,8 @@ public class SuitListener implements Listener {
     private void updateBossBar(Player player) {
         BossBar bar = bossBars.get(player.getUniqueId());
         if (bar == null) return;
-        double pct = energy.get(player) / energy.getMax();
+        PlayerResourcePool p = poolFor(player);
+        double pct = p.get(player) / p.getEffectiveMax(player.getUniqueId());
         bar.setProgress(Math.max(0.0, Math.min(1.0, pct)));
         bar.setColor(pct > 0.6 ? BarColor.BLUE : pct > 0.3 ? BarColor.YELLOW : BarColor.RED);
     }
@@ -423,7 +376,7 @@ public class SuitListener implements Listener {
         if (player.isOnGround() || player.isFlying() || player.getFallDistance() < 14) return;
         long now = System.currentTimeMillis();
         if (now - lastFallGuard.getOrDefault(player.getUniqueId(), 0L) < 3000) return;
-        if (!energy.tryConsumeEmergency(player, 18)) return;
+        if (!poolFor(player).tryConsumeEmergency(player, 18)) return;
 
         lastFallGuard.put(player.getUniqueId(), now);
         Vector v = player.getVelocity();
@@ -453,7 +406,7 @@ public class SuitListener implements Listener {
                 new Vector(0, -1, 0), lookAhead);
         if (hit == null) return;
 
-        if (!energy.tryConsumeEmergency(player, 12)) return;
+        if (!poolFor(player).tryConsumeEmergency(player, 12)) return;
 
         lastFallGuard.put(player.getUniqueId(), now);
         player.setVelocity(new Vector(vel.getX() * 0.5, 0.0, vel.getZ() * 0.5));
@@ -471,7 +424,8 @@ public class SuitListener implements Listener {
     }
 
     private void checkFridayAudio(Player player) {
-        double pct = energy.get(player) / energy.getMax();
+        PlayerResourcePool p = poolFor(player);
+        double pct = p.get(player) / p.getEffectiveMax(player.getUniqueId());
         boolean critical = pct < 0.2;
         boolean wasCrit  = wasPowerCritical.getOrDefault(player.getUniqueId(), false);
         if (critical && !wasCrit)               friday(player, FridayLine.POWER_CRITICAL);
@@ -491,7 +445,7 @@ public class SuitListener implements Listener {
         boolean proactiveFired = now - lastFallGuard.getOrDefault(player.getUniqueId(), 0L) < 1000;
         if (proactiveFired) { event.setCancelled(true); return; }
 
-        if (!energy.tryConsumeEmergency(player, 12)) return;
+        if (!poolFor(player).tryConsumeEmergency(player, 12)) return;
         lastFallGuard.put(player.getUniqueId(), now);
         event.setCancelled(true);
 
@@ -541,8 +495,9 @@ public class SuitListener implements Listener {
 
         // Double-jump: second press must be airborne and within the window
         if (player.isOnGround()) return;
-        if (now - last >= DOUBLE_JUMP_WINDOW_MS) return;
-        if (enchantIndex.getByTrigger(uid, "on_suit_jump").isEmpty()) return;
+        SuitFlightEffect sfe = getSuitFlightEffect(player);
+        if (sfe == null) return;
+        if (now - last >= sfe.getDoubleJumpWindowMs()) return;
 
         if (flightActive.contains(uid)) endFlight(player);
         else startFlight(player);

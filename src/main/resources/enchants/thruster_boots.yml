@@ -22,11 +22,14 @@ trigger:
   type: on_suit_jump
 
 effect:
-  style: velocity_impulse
-  direction: wasd_or_up
-  powerPerLevel: 0.7
-  energyCost: 4.0
-
+  style: suit_flight
+  resourcePool: energy
+  flightSpeed: 0.25
+  sprintSpeed: 0.6
+  verticalSpeed: 0.25
+  flightEnergyPerTick: 40.0
+  hoverEnergyPerTick: 10.0
+  doubleJumpWindowMs: 400
   visuals:
     on_fire:
       - type: burst

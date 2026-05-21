@@ -15,17 +15,15 @@ import java.util.Locale;
 
 public final class VelocityImpulseEffect implements EnchantEffect {
 
-    private static PlayerResourcePool energy;
-
-    public static void init(PlayerResourcePool pool) { energy = pool; }
-
+    private final PlayerResourcePool pool;
     private final String direction;
     private final double powerPerLevel;
     private final double energyCost;
     private final VisualSystem visuals;
 
-    public VelocityImpulseEffect(String direction, double powerPerLevel,
+    public VelocityImpulseEffect(PlayerResourcePool pool, String direction, double powerPerLevel,
                                   double energyCost, VisualSystem visuals) {
+        this.pool = pool;
         this.direction = direction;
         this.powerPerLevel = powerPerLevel;
         this.energyCost = energyCost;
@@ -37,6 +35,7 @@ public final class VelocityImpulseEffect implements EnchantEffect {
 
     public static VelocityImpulseEffect fromYaml(NamespacedKey key, ConfigurationSection section) {
         return new VelocityImpulseEffect(
+                ResourcePoolRegistry.get(section.getString("resourcePool", "energy")),
                 section.getString("direction", "forward"),
                 section.getDouble("powerPerLevel", 1.0),
                 section.getDouble("energyCost", 0.0),
@@ -61,7 +60,7 @@ public final class VelocityImpulseEffect implements EnchantEffect {
             // 5-19 ticks: default multipliers
         }
 
-        if (cost > 0 && (energy == null || !energy.tryConsume(player, cost))) {
+        if (cost > 0 && !pool.tryConsume(player, cost)) {
             player.playSound(player.getLocation(), Sound.BLOCK_DISPENSER_FAIL, 0.9f, 0.7f);
             visuals.play(CuePoint.ON_FAIL, player, context);
             return;
@@ -104,7 +103,7 @@ public final class VelocityImpulseEffect implements EnchantEffect {
      */
     public boolean tickThrust(Player player, int level) {
         double tickCost = energyCost / 6.0;
-        if (tickCost > 0 && (energy == null || !energy.tryConsume(player, tickCost))) {
+        if (tickCost > 0 && !pool.tryConsume(player, tickCost)) {
             return false;
         }
 

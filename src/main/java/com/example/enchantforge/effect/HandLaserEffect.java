@@ -12,15 +12,13 @@ import org.bukkit.util.Vector;
 
 public class HandLaserEffect implements EnchantEffect {
 
-    private static PlayerResourcePool energy;
-
-    public static void init(PlayerResourcePool pool) { energy = pool; }
-
+    private final PlayerResourcePool pool;
     private final double baseRange;
     private final double baseDamage;
     private final double energyCost;
 
-    public HandLaserEffect(double baseRange, double baseDamage, double energyCost) {
+    public HandLaserEffect(PlayerResourcePool pool, double baseRange, double baseDamage, double energyCost) {
+        this.pool = pool;
         this.baseRange = baseRange;
         this.baseDamage = baseDamage;
         this.energyCost = energyCost;
@@ -28,6 +26,7 @@ public class HandLaserEffect implements EnchantEffect {
 
     public static HandLaserEffect fromYaml(ConfigurationSection section) {
         return new HandLaserEffect(
+                ResourcePoolRegistry.get(section.getString("resourcePool", "energy")),
                 section.getDouble("range", 25.0),
                 section.getDouble("damage", 6.0),
                 section.getDouble("energy_cost", 15.0));
@@ -38,7 +37,7 @@ public class HandLaserEffect implements EnchantEffect {
 
     @Override
     public void apply(Player player, int level, int durationTicks) {
-        if (energy == null || !energy.tryConsume(player, energyCost)) {
+        if (!pool.tryConsume(player, energyCost)) {
             player.playSound(player.getLocation(), Sound.BLOCK_DISPENSER_FAIL, 0.9f, 0.7f);
             return;
         }

@@ -11,24 +11,49 @@ public final class PlayerResourcePool {
 
     private static final long MS_PER_TICK = 50L;
 
-    private final double max;
-    private final double regenPerTick;
-    /** Bottom 5% is reserved for emergency triggers (fall guard, landing). */
-    private final double reserveFloor;
+    private final double baseMax;
+    private final double baseRegenPerTick;
     private final Map<UUID, Double> pool = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastRegenAt = new ConcurrentHashMap<>();
-    private Consumer<Player> onChanged = p -> {};
+    private final Map<UUID, Double> bonusMax = new ConcurrentHashMap<>();
+    private final Map<UUID, Double> bonusRegen = new ConcurrentHashMap<>();
+    private final java.util.List<Consumer<Player>> onChangedCallbacks = new java.util.ArrayList<>();
 
-    public PlayerResourcePool(double max, double regenPerTick) {
-        this.max = max;
-        this.regenPerTick = regenPerTick;
-        this.reserveFloor = max * 0.05;
+    public PlayerResourcePool(double baseMax, double baseRegenPerTick) {
+        this.baseMax = baseMax;
+        this.baseRegenPerTick = baseRegenPerTick;
     }
 
-    public double getMax() { return max; }
+    /** Base (config) max, without any per-player modifiers. */
+    public double getBaseMax() { return baseMax; }
 
-    public void onChanged(Consumer<Player> callback) {
-        this.onChanged = callback;
+    /** Effective max for this player, including equipped enchant bonuses. */
+    public double getEffectiveMax(UUID id) {
+        return baseMax + bonusMax.getOrDefault(id, 0.0);
+    }
+
+    /** Add a modifier from an equipped enchant. Each call to addModifier must be paired with removeModifier. */
+    public void addModifier(UUID id, double maxBonus, double regenBonus) {
+        bonusMax.merge(id, maxBonus, Double::sum);
+        bonusRegen.merge(id, regenBonus, Double::sum);
+    }
+
+    /** Remove a modifier when the enchant is unequipped. */
+    public void removeModifier(UUID id, double maxBonus, double regenBonus) {
+        bonusMax.computeIfPresent(id, (k, v) -> {
+            double result = v - maxBonus;
+            return result == 0.0 ? null : result;
+        });
+        bonusRegen.computeIfPresent(id, (k, v) -> {
+            double result = v - regenBonus;
+            return result == 0.0 ? null : result;
+        });
+        // Cap stored value to new effective max in case it shrank
+        pool.computeIfPresent(id, (k, v) -> Math.min(v, getEffectiveMax(id)));
+    }
+
+    public void addOnChanged(Consumer<Player> callback) {
+        onChangedCallbacks.add(callback);
     }
 
     public double get(Player player) {
@@ -42,9 +67,10 @@ public final class PlayerResourcePool {
     public boolean tryConsume(Player player, double cost) {
         UUID id = player.getUniqueId();
         double current = computeRegen(id);
-        if (current - cost < reserveFloor) return false;
+        double floor = getEffectiveMax(id) * 0.05;
+        if (current - cost < floor) return false;
         pool.put(id, current - cost);
-        onChanged.accept(player);
+        fireOnChanged(player);
         return true;
     }
 
@@ -57,18 +83,25 @@ public final class PlayerResourcePool {
         double current = computeRegen(id);
         if (current < cost) return false;
         pool.put(id, current - cost);
-        onChanged.accept(player);
+        fireOnChanged(player);
         return true;
     }
 
     public void cleanup(UUID id) {
         pool.remove(id);
         lastRegenAt.remove(id);
+        bonusMax.remove(id);
+        bonusRegen.remove(id);
+    }
+
+    private void fireOnChanged(Player player) {
+        for (Consumer<Player> cb : onChangedCallbacks) cb.accept(player);
     }
 
     private double computeRegen(UUID id) {
-        double current = pool.getOrDefault(id, max);
-        if (current >= max) return max;
+        double effMax = getEffectiveMax(id);
+        double current = pool.getOrDefault(id, effMax);
+        if (current >= effMax) return effMax;
         long now = System.currentTimeMillis();
         // computeIfAbsent seeds the timer on first call below max so elapsedTicks
         // can grow on subsequent calls; without this, getOrDefault(id, now) always
@@ -76,7 +109,8 @@ public final class PlayerResourcePool {
         long last = lastRegenAt.computeIfAbsent(id, k -> now);
         long elapsedTicks = (now - last) / MS_PER_TICK;
         if (elapsedTicks <= 0) return current;
-        double regened = Math.min(max, current + elapsedTicks * regenPerTick);
+        double effRegen = baseRegenPerTick + bonusRegen.getOrDefault(id, 0.0);
+        double regened = Math.min(effMax, current + elapsedTicks * effRegen);
         pool.put(id, regened);
         lastRegenAt.put(id, last + elapsedTicks * MS_PER_TICK);
         return regened;

@@ -20,3 +20,11 @@ vibecraft-mod:
 
 debug:
   cooldownVisuals: false
+
+# Resource pools — named energy stores shared across enchants.
+# Effects reference a pool by name via `resourcePool: <name>` in their YAML.
+# Omit this section to use built-in defaults (energy: max 5000, regenPerTick 10).
+resource-pools:
+  energy:
+    max: 5000
+    regenPerTick: 10

@@ -76,12 +76,21 @@ src/main/java/com/example/enchantforge/
     MorphFormEffect.java           — generic entity-form effect; entity type, potions, visual mode in YAML
     EyeLaserEffect.java            — eye-origin raycast beam; damages + ignites; no energy cost
     HandLaserEffect.java           — hand-origin raycast beam; damages + knockback; draws energy
-    ThrusterEffect.java            — charge-up vertical thrust impulse; draws energy
     RaycastDamageEffect.java       — generic raycast damage + knockback with VisualSystem cues
     VelocityImpulseEffect.java     — generic velocity impulse with YAML direction + VisualSystem cues
+    SuitFlightEffect.java          — YAML-driven suit flight physics (style: suit_flight); all speed/
+                                     energy/visual constants come from YAML; SuitListener delegates
+                                     per-tick physics to tickFlight()
+    ResourcePoolModifierEffect.java — buffs a named pool's max/regen for one player (style: resource_pool_modifier);
+                                     apply() adds bonus, remove() subtracts it exactly; stacks additively
     FridayAiEffect.java            — activates the FRIDAY AI suit (SuitListener.activateSuit)
     RobotCompanionEffect.java      — summons/dismisses Iron Golem companion via RobotCompanionManager
-    PlayerResourcePool.java        — lazy-regen energy pool shared across energy-consuming effects
+    PlayerResourcePool.java        — lazy-regen energy pool; supports per-player max/regen modifiers
+                                     (addModifier/removeModifier), getEffectiveMax(UUID), and a list
+                                     of onChanged callbacks; cleanup(UUID) clears bonus maps
+    ResourcePoolRegistry.java      — static singleton; loads named pools from config resource-pools:
+                                     section; get(name) → pool (falls back to "energy"); all() → all
+                                     pools; cleanupPlayer(UUID) → cleans all pools on player quit
     RobotCompanionManager.java     — manages one golem per player; auto-respawns after death
     ScoreboardTeamUtil.java        — scoreboard team helpers for no-collide between player+entity
 
@@ -108,12 +117,13 @@ src/main/java/com/example/enchantforge/
 
 src/main/resources/
   plugin.yml
-  config.yml                       — resource-pack host/port/url/required; vibecraft-mod URL; debug flags
+  config.yml                       — resource-pack host/port/url/required; vibecraft-mod URL; debug flags;
+                                     resource-pools: named pool definitions (max, regenPerTick)
   enchants/*.yml                   — bundled default enchantments (17 files)
   ui/main.json                     — base UI schema sent to the mod on startup
 
 VibeCraftServer/plugins/EnchantForge/  — live server data folder
-  config.yml                       — actual runtime config
+  config.yml                       — actual runtime config (resource-pools section lives here)
   enchants/*.yml                   — runtime enchant files (may diverge from bundled defaults)
   cooldowns.yml                    — persisted cooldown state (save/load on enable/disable)
 ```
@@ -226,11 +236,31 @@ effect:
   range: 25.0
   damage: 6.0
   energy_cost: 15.0
+  resourcePool: energy          # optional; name of pool to draw from (default: "energy")
 
 effect:
-  style: thruster               # charge-up vertical/directional thrust; draws energy
-  power: 0.7
-  energy_cost: 18.0
+  style: suit_flight            # YAML-driven suit flight; replaces old hardcoded SuitListener constants
+  resourcePool: energy          # pool to draw flight energy from (default: "energy")
+  flightSpeed: 0.35             # horizontal speed during manual flight
+  sprintSpeed: 0.75             # speed during sprint-fly mode
+  verticalSpeed: 0.4            # ascend/descend speed
+  flightEnergyPerTick: 8.0      # energy drained per tick while actively flying
+  hoverEnergyPerTick: 3.0       # energy drained per tick while hovering in place
+  doubleJumpWindowMs: 400       # milliseconds after first jump in which second jump engages flight
+  visuals:
+    on_fire:                    # played once when flight engages
+      - type: sound
+        sound: ENTITY_BLAZE_SHOOT
+        volume: 0.8
+        pitch: 1.3
+
+effect:
+  style: resource_pool_modifier # buffs a named pool's effective max and/or regen for one player
+  pool: energy                  # which pool to modify (default: "energy")
+  maxBonusPerLevel: 500.0       # added to effective max per enchant level
+  regenBonusPerLevel: 5.0       # added to regen per tick per enchant level
+                                # Multiple enchants targeting the same pool stack additively.
+                                # apply() registers the bonus; remove() subtracts it exactly.
 
 effect:
   style: raycast_damage         # generic raycast damage with VisualSystem cue support
@@ -238,12 +268,14 @@ effect:
   damagePerLevel: 3.0
   knockback: 0.5
   energyCost: 0.0
+  resourcePool: energy          # optional; name of pool to draw from (default: "energy")
 
 effect:
   style: velocity_impulse       # generic velocity impulse with VisualSystem cue support
   direction: forward            # forward | up | backward | look | away_from_look | wasd_or_up
   powerPerLevel: 1.0
   energyCost: 0.0
+  resourcePool: energy          # optional; name of pool to draw from (default: "energy")
 
 effect:
   style: friday_ai              # activates FRIDAY AI suit (energy HUD, mob detection, fall guard)
@@ -392,18 +424,44 @@ per tracked stack so same-material items do not inherit each other's visual cool
 
 ---
 
-## Energy system (PlayerResourcePool)
+## Resource pool system
 
-Many active effects draw from a shared `PlayerResourcePool` instance (capacity 5000, regen 10/tick).
-Effects that draw energy call `energy.tryConsume(player, cost)`, which returns `false` (and plays a
-fail sound) if the remaining energy would drop below the 5% emergency reserve.
+Named resource pools are defined in `config.yml` under `resource-pools:` and loaded at startup via
+`ResourcePoolRegistry.init(ConfigurationSection)`:
 
-The bottom 5% of the pool is reserved for emergency triggers (fall guard in `SuitListener`), which
-call `energy.tryConsumeEmergency` and bypass the reserve floor.
+```yaml
+resource-pools:
+  energy:
+    max: 5000
+    regenPerTick: 10
+```
 
-Energy is lazy-regen: `computeRegen` calculates elapsed ticks since the last drain and credits the
-pool on read — there is no background scheduler task. `onChanged` callbacks allow `SuitListener` to
-update the boss bar immediately when energy changes.
+`ResourcePoolRegistry.get(name)` returns the named `PlayerResourcePool`, falling back to `"energy"`
+when `name` is null or blank. `ResourcePoolRegistry.all()` returns every pool (used to register
+`onChanged` callbacks). `ResourcePoolRegistry.cleanupPlayer(UUID)` calls `cleanup` on every pool
+when a player quits.
+
+### PlayerResourcePool
+
+Each pool is a lazy-regen store: `computeRegen` calculates elapsed ticks since the last drain and
+credits the pool on read — there is no background scheduler task.
+
+**Per-player modifiers** allow enchants to buff a pool without touching base config:
+- `addModifier(UUID, double maxBonus, double regenBonus)` — called by `ResourcePoolModifierEffect.apply()`
+- `removeModifier(UUID, double maxBonus, double regenBonus)` — called by `ResourcePoolModifierEffect.remove()`
+- `getEffectiveMax(UUID)` — returns base max + the player's accumulated bonus; used everywhere the
+  old single `getMax()` was used
+
+Multiple enchants (or multiple levels of the same enchant) targeting the same pool stack additively.
+
+**Callbacks:** `addOnChanged(Consumer<Player>)` registers to a list of callbacks (previously a single
+field). `SuitListener` uses this to update the boss bar immediately when energy changes.
+
+**Emergency reserve:** The bottom 5% of the pool is reserved. Normal consumption via
+`tryConsume(player, cost)` refuses if the reserve would be breached. Fall guard in `SuitListener`
+uses `tryConsumeEmergency` to bypass the floor.
+
+**Cleanup:** `cleanup(UUID)` clears both the energy state and the per-player bonus maps for that player.
 
 ---
 
@@ -411,16 +469,23 @@ update the boss bar immediately when energy changes.
 
 `SuitListener` manages two overlapping suit subsystems:
 
-### Thruster boots (on_suit_jump enchant)
+### Thruster boots (on_suit_jump enchant, style: suit_flight)
 Double-jumping mid-air engages creative-style custom flight (`setAllowFlight(true)` as an
 anti-cheat bypass, but physics are applied manually via `setVelocity`). Controls:
 - Space → ascend; Shift → descend; WASD → horizontal movement
 - Sprint + W → sprint-fly mode (elytra pose, 3D look-direction movement at higher speed)
 - Landing on the ground ends flight
 
-Per-tick energy drain: hovering costs less than active flight. When energy hits the reserve floor,
-flight is cancelled. A `FridayLine.FALL_PROTECTION` check in the 1-tick poll fires retrograde
-braking if the player is falling fast enough toward a surface.
+All flight physics constants (speeds, energy costs, double-jump window) now come from the
+`SuitFlightEffect` loaded from `thruster_boots.yml` — nothing is hardcoded in `SuitListener`.
+`SuitListener` calls `suitFlightEffect.tickFlight(player, wasSprintFly)` each tick, which returns
+a `TickResult(boolean alive, boolean sprintFly)` indicating whether flight should continue.
+`playEngageVisuals(player)` fires the YAML-defined `visuals.on_fire` cues when flight starts.
+The pool to drain is `suitFlightEffect.getPool()`.
+
+Per-tick energy drain: hovering costs less than active flight (rates from YAML). When energy hits
+the reserve floor, flight is cancelled. A `FridayLine.FALL_PROTECTION` check in the 1-tick poll
+fires retrograde braking if the player is falling fast enough toward a surface.
 
 Scoreboard tag `thruster_flying` is added on flight start and removed on end.
 
@@ -550,6 +615,13 @@ These are too intertwined with lifecycle management to fit the generic spec patt
 1. Implement `EnchantEffect` in `effect/`
 2. Add a `fromYaml(NamespacedKey, ConfigurationSection)` or `fromYaml(ConfigurationSection)` static factory
 3. Register it in `EnchantEffectTypeRegistry`'s static block: `register("your_style", YourEffect::fromYaml)`
+
+If the effect draws from a resource pool, resolve it in `fromYaml` rather than using a hardcoded
+instance:
+```java
+PlayerResourcePool pool = ResourcePoolRegistry.get(section.getString("resourcePool", "energy"));
+```
+This lets enchant authors specify `resourcePool: <name>` in YAML to target any named pool.
 
 ---
 

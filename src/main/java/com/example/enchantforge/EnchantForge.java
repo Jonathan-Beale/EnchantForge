@@ -1,11 +1,7 @@
 package com.example.enchantforge;
 
-import com.example.enchantforge.effect.HandLaserEffect;
 import com.example.enchantforge.effect.MorphFormEffect;
-import com.example.enchantforge.effect.PlayerResourcePool;
-import com.example.enchantforge.effect.RaycastDamageEffect;
-import com.example.enchantforge.effect.ThrusterEffect;
-import com.example.enchantforge.effect.VelocityImpulseEffect;
+import com.example.enchantforge.effect.ResourcePoolRegistry;
 import com.example.enchantforge.effect.WolfFormEffect;
 import com.example.enchantforge.trigger.EnchantTriggerTypeRegistry;
 import net.kyori.adventure.text.Component;
@@ -38,7 +34,6 @@ public class EnchantForge extends JavaPlugin {
     private ResourcePackManager resourcePackManager;
     private VibeCraftUiBridge uiBridge;
     private EnchantForgeModInputListener modInputListener;
-    private PlayerResourcePool energy;
 
     @Override
     public void onEnable() {
@@ -50,16 +45,12 @@ public class EnchantForge extends JavaPlugin {
         WolfFormEffect.init(this);
         MorphFormEffect.init(this);
 
+        ResourcePoolRegistry.init(getConfig().getConfigurationSection("resource-pools"));
         registry = new EnchantmentRegistry();
         cooldowns = new CooldownManager();
         tracker = new ActiveEffectTracker();
         combatTracker = new CombatTracker();
         enchantIndex = new PlayerEnchantIndex();
-        energy = new PlayerResourcePool(5000.0, 10.0);
-        ThrusterEffect.init(energy);
-        HandLaserEffect.init(energy);
-        RaycastDamageEffect.init(energy);
-        VelocityImpulseEffect.init(energy);
         com.example.enchantforge.effect.RobotCompanionManager.init(this);
 
         getServer().getMessenger().registerOutgoingPluginChannel(this, "vibecraft:events");
@@ -97,7 +88,7 @@ public class EnchantForge extends JavaPlugin {
             tracker.clearPlayer(id);
             combatTracker.clearPlayer(id);
             enchantIndex.clearPlayer(id);
-            energy.cleanup(id);
+            ResourcePoolRegistry.cleanupPlayer(id);
         });
         getServer().getPluginManager().registerEvents(lifecycle, this);
 
@@ -109,7 +100,7 @@ public class EnchantForge extends JavaPlugin {
         getServer().getPluginManager().registerEvents(enchantRouter, this);
         getServer().getPluginManager().registerEvents(
                 new RightClickListener(registry, cooldowns, this, enchantIndex), this);
-        getServer().getPluginManager().registerEvents(new SuitListener(this, enchantIndex, energy), this);
+        getServer().getPluginManager().registerEvents(new SuitListener(this, enchantIndex), this);
 
         EnchantCommand cmd = new EnchantCommand(this);
         getCommand("cenchant").setExecutor(cmd);
@@ -148,7 +139,7 @@ public class EnchantForge extends JavaPlugin {
             tracker.clearPlayer(player.getUniqueId());
             cooldowns.clearPlayer(player.getUniqueId());
             enchantIndex.clearPlayer(player.getUniqueId());
-            energy.cleanup(player.getUniqueId());
+            ResourcePoolRegistry.cleanupPlayer(player.getUniqueId());
         }
 
         registry.clear();

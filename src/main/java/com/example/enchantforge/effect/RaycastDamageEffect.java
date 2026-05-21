@@ -13,18 +13,16 @@ import org.bukkit.util.Vector;
 
 public final class RaycastDamageEffect implements EnchantEffect {
 
-    private static PlayerResourcePool energy;
-
-    public static void init(PlayerResourcePool pool) { energy = pool; }
-
+    private final PlayerResourcePool pool;
     private final double range;
     private final double damagePerLevel;
     private final double knockback;
     private final double energyCost;
     private final VisualSystem visuals;
 
-    public RaycastDamageEffect(double range, double damagePerLevel, double knockback,
-                                double energyCost, VisualSystem visuals) {
+    public RaycastDamageEffect(PlayerResourcePool pool, double range, double damagePerLevel,
+                                double knockback, double energyCost, VisualSystem visuals) {
+        this.pool = pool;
         this.range = range;
         this.damagePerLevel = damagePerLevel;
         this.knockback = knockback;
@@ -37,6 +35,7 @@ public final class RaycastDamageEffect implements EnchantEffect {
 
     public static RaycastDamageEffect fromYaml(NamespacedKey key, ConfigurationSection section) {
         return new RaycastDamageEffect(
+                ResourcePoolRegistry.get(section.getString("resourcePool", "energy")),
                 section.getDouble("range", 20.0),
                 section.getDouble("damagePerLevel", 3.0),
                 section.getDouble("knockback", 0.5),
@@ -51,7 +50,7 @@ public final class RaycastDamageEffect implements EnchantEffect {
 
     @Override
     public void apply(Player player, int level, int durationTicks, EnchantEffectContext context) {
-        if (energyCost > 0 && (energy == null || !energy.tryConsume(player, energyCost))) {
+        if (energyCost > 0 && !pool.tryConsume(player, energyCost)) {
             player.playSound(player.getLocation(), Sound.BLOCK_DISPENSER_FAIL, 0.9f, 0.7f);
             visuals.play(CuePoint.ON_FAIL, player, context);
             return;

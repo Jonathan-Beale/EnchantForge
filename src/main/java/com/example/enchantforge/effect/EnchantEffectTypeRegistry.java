@@ -24,7 +24,8 @@ public final class EnchantEffectTypeRegistry {
         register("wolf_form", (key, section) -> WolfFormEffect.INSTANCE);
         register("morph_form", (key, section) -> MorphFormEffect.fromYaml(section));
         register("eye_laser", (key, section) -> EyeLaserEffect.fromYaml(section));
-        register("thruster", (key, section) -> ThrusterEffect.fromYaml(section));
+        register("suit_flight", SuitFlightEffect::fromYaml);
+        register("resource_pool_modifier", (key, section) -> ResourcePoolModifierEffect.fromYaml(section));
         register("hand_laser", (key, section) -> HandLaserEffect.fromYaml(section));
         register("friday_ai", (key, section) -> FridayAiEffect.fromYaml(section));
         register("raycast_damage", RaycastDamageEffect::fromYaml);
