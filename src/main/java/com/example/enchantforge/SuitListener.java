@@ -349,8 +349,8 @@ public class SuitListener implements Listener {
             vz =  Math.cos(yawRad)  * Math.cos(pitchRad) * s;
         } else {
             // Standard WASD horizontal movement
-            double fx = -Math.sin(yawRad), fz = Math.cos(yawRad);   // forward unit vector
-            double rx =  Math.cos(yawRad), rz = Math.sin(yawRad);   // right unit vector
+            double fx = -Math.sin(yawRad), fz =  Math.cos(yawRad);   // forward unit vector
+            double rx = -Math.cos(yawRad), rz = -Math.sin(yawRad);  // right unit vector (West when facing South)
             double hx = 0, hz = 0;
             if (input.isForward())  { hx += fx; hz += fz; }
             if (input.isBackward()) { hx -= fx; hz -= fz; }
