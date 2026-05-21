@@ -71,7 +71,6 @@ public class SuitListener implements Listener {
     private static final double FLIGHT_SPEED            = 0.25;
     private static final double SPRINT_FLIGHT_SPEED     = 0.6;
     private static final double FLIGHT_VERTICAL_SPEED   = 0.25;
-    private static final double GRAVITY_COUNTERACT      = 0.08;
 
     // -------------------------------------------------------------------------
 
@@ -90,7 +89,9 @@ public class SuitListener implements Listener {
     // ---- Suit on/off (called by FridayAiEffect) ----
 
     public void activateSuit(Player player, double glowRadius) {
-        if (!activeSuit.add(player.getUniqueId())) return;
+        if (!activeSuit.add(player.getUniqueId())) {
+            return;
+        }
         playerGlowRadius.put(player.getUniqueId(), glowRadius);
         BossBar bar = Bukkit.createBossBar("⚡  F.R.I.D.A.Y.", BarColor.BLUE, BarStyle.SEGMENTED_20);
         bar.setProgress(energy.get(player) / energy.getMax());
@@ -101,6 +102,7 @@ public class SuitListener implements Listener {
     }
 
     // ---- Plugin channel helpers ----
+
 
     private void sendEvent(Player player, String json) {
         try {
@@ -203,25 +205,14 @@ public class SuitListener implements Listener {
                     if (mob instanceof Player || mob instanceof ArmorStand) continue;
                     if (mob.getLocation().distanceSquared(p.getLocation()) > radiusSq) continue;
                     if (mob instanceof Monster) hostile.add(mob.getEntityId());
-                    else                        neutral.add(mob.getEntityId());
+                    else neutral.add(mob.getEntityId());
                 }
             }
 
-            JsonObject redGroup = new JsonObject();
-            redGroup.addProperty("color", "red");
-            redGroup.add("entities", hostile);
-
-            JsonObject aquaGroup = new JsonObject();
-            aquaGroup.addProperty("color", "aqua");
-            aquaGroup.add("entities", neutral);
-
-            JsonArray groups = new JsonArray();
-            groups.add(redGroup);
-            groups.add(aquaGroup);
-
             JsonObject msg = new JsonObject();
             msg.addProperty("type", "ef_highlight_entities");
-            msg.add("groups", groups);
+            msg.add("hostile", hostile);
+            msg.add("neutral", neutral);
             sendEvent(p, msg.toString());
         }
     }
@@ -373,7 +364,7 @@ public class SuitListener implements Listener {
             // Vertical: space = up, sneak = down, neither = hold altitude
             if (input.isJump())        vy =  FLIGHT_VERTICAL_SPEED;
             else if (input.isSneak())  vy = -FLIGHT_VERTICAL_SPEED;
-            else                       vy =  GRAVITY_COUNTERACT;
+            else                       vy =  0.0;
         }
 
         player.setVelocity(new Vector(vx, vy, vz));
