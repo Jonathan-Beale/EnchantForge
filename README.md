@@ -5,10 +5,15 @@ EnchantForge is a Paper 1.21.4 plugin that adds data-driven custom enchantments 
 ## Highlights
 
 - YAML-based custom enchantments (no code changes needed for most new enchants)
-- Trigger-based effects (for example right click, damage taken, deal damage, kill, equip)
+- Trigger-based effects: on_equip, on_damage_taken, stat_threshold, on_right_click, on_deal_damage, on_kill_entity, on_suit_jump
 - Configurable cooldowns and end conditions
-- Optional debug logging for enchant behavior and cooldown visuals
-- Optional generated resource pack support
+- Shared energy pool for active abilities (hand laser, thruster boots, FRIDAY AI)
+- Suit system: double-jump flight, FRIDAY AI HUD, mob detection, fall protection
+- Morph forms: transform player into an entity (wolf, or any spawnable entity)
+- Robot Companion: Iron Golem that follows and auto-respawns
+- Visual system: YAML-defined particle and sound cues on effect fire, hit, miss, fail
+- Optional resource pack (teal absorption hearts)
+- Optional debug logging per enchant
 
 ## Requirements
 
@@ -19,76 +24,87 @@ EnchantForge is a Paper 1.21.4 plugin that adds data-driven custom enchantments 
 
 From the EnchantForge folder:
 
-```powershell
-.\gradlew.bat jar
+```bash
+./gradlew jar
 ```
 
 Output jar:
 
-- build/libs/EnchantForge-1.0-SNAPSHOT.jar
+- `build/libs/EnchantForge-1.0-SNAPSHOT.jar`
 
 ## Deploy
 
-Copy the built jar to your server plugins folder:
+The build-all script in VibeCraftServer handles this automatically:
 
-```powershell
-Copy-Item -Path .\build\libs\EnchantForge-1.0-SNAPSHOT.jar -Destination ..\server\plugins\EnchantForge.jar -Force
+```bash
+cd VibeCraftServer && ./build-all.sh
 ```
 
-Then reload the server plugin or restart server:
+Or manually copy the jar to the server plugins folder and reload.
 
-- /reload confirm
+For config and YAML changes (no restart needed):
 
-For config and YAML changes, you can use:
-
-- /cenchant reload
+```
+/cenchant reload
+```
 
 ## Commands
 
-- /cenchant <enchantment> [level]
-- /cenchant reload
-- /ctestcooldown
+| Command | Description |
+|---------|-------------|
+| `/cenchant <key> [level]` | Apply an enchantment to the held item |
+| `/cenchant reload` | Reload all enchant YAMLs and config |
+| `/cenchant catalog` | Open the enchant catalog (VibeCraftMod required) |
+| `/cenchant guide` | Open the product guide (VibeCraftMod required) |
+| `/ctestcooldown` | Apply a test cooldown to the held item for diagnostics |
 
 ## Permissions
 
-- enchantforge.cenchant
-- enchantforge.ctestcooldown
+- `enchantforge.cenchant` — access to `/cenchant` (apply and reload)
+- `enchantforge.ctestcooldown` — access to `/ctestcooldown`
 
 ## Configuration
 
-Runtime config is in:
-
-- server/plugins/EnchantForge/config.yml
-
-Important debug switch:
+Runtime config is in `plugins/EnchantForge/config.yml`:
 
 ```yaml
+resource-pack:
+  host: ""       # server IP or domain; leave blank to disable the pack
+  port: 8080
+  url: ""        # override auto-computed URL (optional)
+  required: false
+
+vibecraft-mod:
+  url: ""        # mod download link shown to players who join without it; blank to disable
+
 debug:
-  cooldownVisuals: true
+  cooldownVisuals: false
 ```
 
 ## Enchant Definitions
 
 Runtime enchant files are in:
 
-- server/plugins/EnchantForge/enchants/
+- `plugins/EnchantForge/enchants/`
 
 Bundled defaults live in source:
 
-- src/main/resources/enchants/
+- `src/main/resources/enchants/`
+
+Bundled files are copied to the runtime folder on startup if the deployed file is missing or
+differs from the bundled version. Drop a new YAML directly into the runtime folder and run
+`/cenchant reload` to add an enchant without rebuilding.
 
 ## Cooldown Behavior
 
-EnchantForge uses item-aware cooldown handling for item-triggered enchants. This allows same-material items to have independent cooldown state.
+Item-triggered enchants (right-click, on_deal_damage, on_kill_entity) use a player + enchant + item-id
+cooldown key, so two same-material items have independent cooldown state. Passive armor interruption
+logic uses a player + enchant key to prevent equip-swap bypasses.
 
-- Item-triggered paths use player + enchant + item-id cooldown keys.
-- Passive armor interruption logic remains player + enchant scoped to prevent equip-swap bypasses.
-- Cooldown visuals use per-item cooldown groups when available.
-
-Use /ctestcooldown while holding an item to quickly verify item-isolated cooldown behavior.
+Use `/ctestcooldown` while holding an item to verify item-isolated cooldown behavior.
 
 ## Project Notes
 
-For deeper implementation details, architecture notes, and YAML schema examples, see:
+For implementation details, YAML schema examples, architecture notes, and extension guides, see:
 
-- CLAUDE.md
+- `CLAUDE.md`
