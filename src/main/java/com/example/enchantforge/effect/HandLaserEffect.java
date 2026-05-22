@@ -29,7 +29,7 @@ public class HandLaserEffect implements EnchantEffect {
                 ResourcePoolRegistry.get(section.getString("resourcePool", "energy")),
                 section.getDouble("range", 25.0),
                 section.getDouble("damage", 6.0),
-                section.getDouble("energy_cost", 15.0));
+                section.getDouble("energyCost", 15.0));
     }
 
         @Override

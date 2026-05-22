@@ -101,6 +101,7 @@ public final class VelocityImpulseEffect implements EnchantEffect {
      * so a full tank (500) lasts ~475 ticks (~24 s) before hitting the 5% reserve.
      * Returns false if the energy reserve is hit (caller should stop thrusting).
      */
+    // TODO: delete — dead code, no callers since SuitFlightEffect absorbed all thrust logic
     public boolean tickThrust(Player player, int level) {
         double tickCost = energyCost / 6.0;
         if (tickCost > 0 && !pool.tryConsume(player, tickCost)) {

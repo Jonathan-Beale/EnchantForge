@@ -232,6 +232,7 @@ public class SuitListener implements Listener {
     // ---- Hostile mob behind-warning ----
 
     private void checkHostileMobWarning(Player player) {
+        // TODO: move to YAML field on FridayAiEffect or SuitFlightEffect — hardcoded constant violates YAML-first principle
         double radius = 14.0;
         long cooldownMs = 2500;
         long now = System.currentTimeMillis();
@@ -373,6 +374,7 @@ public class SuitListener implements Listener {
     // ---- Fall guards ----
 
     private void checkFallGuard(Player player) {
+        // TODO: move to YAML field on FridayAiEffect or SuitFlightEffect — hardcoded constant violates YAML-first principle
         if (player.isOnGround() || player.isFlying() || player.getFallDistance() < 14) return;
         long now = System.currentTimeMillis();
         if (now - lastFallGuard.getOrDefault(player.getUniqueId(), 0L) < 3000) return;
@@ -394,6 +396,7 @@ public class SuitListener implements Listener {
         if (player.isOnGround() || player.isFlying() || flightActive.contains(player.getUniqueId())) return;
 
         Vector vel = player.getVelocity();
+        // TODO: move to YAML field on FridayAiEffect or SuitFlightEffect — hardcoded constant violates YAML-first principle
         if (vel.getY() >= -0.1) return;
         if (player.getFallDistance() < 3.0f) return;
 
@@ -426,6 +429,7 @@ public class SuitListener implements Listener {
     private void checkFridayAudio(Player player) {
         PlayerResourcePool p = poolFor(player);
         double pct = p.get(player) / p.getEffectiveMax(player.getUniqueId());
+        // TODO: move to YAML field on FridayAiEffect or SuitFlightEffect — hardcoded constant violates YAML-first principle
         boolean critical = pct < 0.2;
         boolean wasCrit  = wasPowerCritical.getOrDefault(player.getUniqueId(), false);
         if (critical && !wasCrit)               friday(player, FridayLine.POWER_CRITICAL);
@@ -442,6 +446,7 @@ public class SuitListener implements Listener {
         if (enchantIndex.getByTrigger(player.getUniqueId(), "on_suit_jump").isEmpty()) return;
 
         long now = System.currentTimeMillis();
+        // TODO: move to YAML field on FridayAiEffect or SuitFlightEffect — hardcoded constant violates YAML-first principle
         boolean proactiveFired = now - lastFallGuard.getOrDefault(player.getUniqueId(), 0L) < 1000;
         if (proactiveFired) { event.setCancelled(true); return; }
 

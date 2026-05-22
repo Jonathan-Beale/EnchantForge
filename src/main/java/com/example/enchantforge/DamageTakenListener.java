@@ -68,6 +68,7 @@ public class DamageTakenListener implements Listener {
             Set<NamespacedKey> cooledDown = new HashSet<>();
             for (PlayerEnchantIndex.SlottedEnchant se : onEquipList) {
                 CustomEnchant enchant = se.enchant();
+                // TODO: replace instanceof chain with registry dispatch — violates YAML-first design principle
                 if ((enchant.getEndCondition() instanceof DamagedCondition
                         || enchant.getEndCondition() instanceof FullHealthOrDamagedCondition)
                         && enchant.hasCooldown()
@@ -161,6 +162,7 @@ public class DamageTakenListener implements Listener {
     private boolean fires(CustomEnchant enchant, Player player, double resultingHealth) {
         String triggerId = enchant.getTrigger().id();
         if ("on_damage_taken".equals(triggerId)) return true;
+        // TODO: replace instanceof chain with registry dispatch — violates YAML-first design principle
         if ("stat_threshold".equals(triggerId) && enchant.getTrigger() instanceof StatThresholdTrigger t) {
             return t.matches(player, resultingHealth);
         }
@@ -195,6 +197,7 @@ public class DamageTakenListener implements Listener {
      */
     private int evaluateEndCondition(CustomEnchant enchant, Player player,
                                       double resultingHealth, boolean damageEvent) {
+        // TODO: replace instanceof chain with registry dispatch — violates YAML-first design principle
         return switch (enchant.getEndCondition()) {
             case DamagedCondition c -> damageEvent ? 1 : 0;
             case FullHealthOrDamagedCondition c -> {

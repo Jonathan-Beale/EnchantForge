@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+// TODO: delete — dead duplicate of MorphFormEffect; remove registry entry in EnchantEffectTypeRegistry and any init() call
 public class WolfFormEffect implements EnchantEffect, Listener {
 
     public static final WolfFormEffect INSTANCE = new WolfFormEffect();
